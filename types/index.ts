@@ -62,3 +62,9 @@ export interface IncomeEngine {
   targetOutput: string
   linkedWorkflowIds: string[]
 }
+
+export interface ActiveWorkflowSession {
+  workflowId: string
+  currentStepIndex: number
+  startedAt: string
+}

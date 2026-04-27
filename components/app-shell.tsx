@@ -13,6 +13,7 @@ import { ToolLauncher } from "@/components/views/tool-launcher"
 import { WorkflowLibrary } from "@/components/views/workflow-library"
 import { Settings } from "@/components/views/settings"
 import type { ViewType } from "@/types/navigation"
+import type { ActiveWorkflowSession } from "@/types"
 
 interface AppShellProps {
   currentView: ViewType
@@ -26,6 +27,7 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
       INCOME_ENGINES[0]?.activeWorkflowId ??
       ""
   )
+  const [activeWorkflowSession, setActiveWorkflowSession] = useState<ActiveWorkflowSession | null>(null)
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -47,6 +49,40 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
     onNavigate("workflows")
   }
 
+  const startWorkflowSession = (workflowId: string) => {
+    setSelectedWorkflowId(workflowId)
+    setActiveWorkflowSession({
+      workflowId,
+      currentStepIndex: 0,
+      startedAt: new Date().toISOString(),
+    })
+    onNavigate("workflows")
+  }
+
+  const endWorkflowSession = () => {
+    setActiveWorkflowSession(null)
+  }
+
+  const moveWorkflowStep = (direction: 1 | -1) => {
+    setActiveWorkflowSession((currentSession) => {
+      if (!currentSession) return currentSession
+      return {
+        ...currentSession,
+        currentStepIndex: Math.max(0, currentSession.currentStepIndex + direction),
+      }
+    })
+  }
+
+  const jumpToWorkflowStep = (stepIndex: number) => {
+    setActiveWorkflowSession((currentSession) => {
+      if (!currentSession) return currentSession
+      return {
+        ...currentSession,
+        currentStepIndex: Math.max(0, stepIndex),
+      }
+    })
+  }
+
   const renderView = () => {
     switch (currentView) {
       case "dashboard":
@@ -55,6 +91,8 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             onNavigate={onNavigate}
             onOpenCommand={() => setCommandOpen(true)}
             onOpenWorkflow={openWorkflow}
+            onStartWorkflowSession={startWorkflowSession}
+            activeWorkflowSession={activeWorkflowSession}
           />
         )
       case "prompts":
@@ -70,6 +108,11 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
           <WorkflowLibrary
             selectedWorkflowId={selectedWorkflowId}
             onSelectWorkflow={setSelectedWorkflowId}
+            activeWorkflowSession={activeWorkflowSession}
+            onStartWorkflowSession={startWorkflowSession}
+            onEndWorkflowSession={endWorkflowSession}
+            onMoveWorkflowStep={moveWorkflowStep}
+            onJumpToWorkflowStep={jumpToWorkflowStep}
           />
         )
       case "settings":
@@ -80,6 +123,8 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             onNavigate={onNavigate}
             onOpenCommand={() => setCommandOpen(true)}
             onOpenWorkflow={openWorkflow}
+            onStartWorkflowSession={startWorkflowSession}
+            activeWorkflowSession={activeWorkflowSession}
           />
         )
     }

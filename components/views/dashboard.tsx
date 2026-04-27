@@ -1,18 +1,20 @@
 "use client"
 
-import { ArrowRight, Briefcase, ExternalLink, GitBranch, Target } from "lucide-react"
+import { ArrowRight, Briefcase, ExternalLink, GitBranch, Play, Target } from "lucide-react"
 import { INCOME_ENGINES } from "@/data/income-engines"
 import { WORKFLOWS } from "@/data/workflows"
 import { TOOLS } from "@/data/tools"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import type { ViewType } from "@/types"
+import type { ActiveWorkflowSession, ViewType } from "@/types"
 
 interface DashboardProps {
   onNavigate: (view: ViewType) => void
   onOpenCommand: () => void
   onOpenWorkflow: (workflowId: string) => void
+  onStartWorkflowSession: (workflowId: string) => void
+  activeWorkflowSession: ActiveWorkflowSession | null
 }
 
 const primaryEngine =
@@ -23,7 +25,22 @@ const nextStep = nextWorkflow.steps[1] ?? nextWorkflow.steps[0]
 const recommendedTool =
   TOOLS.find((tool) => tool.id === nextStep?.toolIds[0]) ?? TOOLS[0]
 
-export function Dashboard({ onNavigate, onOpenCommand, onOpenWorkflow }: DashboardProps) {
+export function Dashboard({
+  onNavigate,
+  onOpenCommand,
+  onOpenWorkflow,
+  onStartWorkflowSession,
+  activeWorkflowSession,
+}: DashboardProps) {
+  const activeSessionMatchesPrimary = activeWorkflowSession?.workflowId === nextWorkflow.id
+  const activeSessionStepNumber = activeSessionMatchesPrimary && activeWorkflowSession
+    ? activeWorkflowSession.currentStepIndex + 1
+    : null
+  const activeSessionStep =
+    activeSessionMatchesPrimary && activeWorkflowSession
+      ? nextWorkflow.steps[activeWorkflowSession.currentStepIndex] ?? nextWorkflow.steps[0]
+      : null
+
   return (
     <div className="p-6 space-y-6 max-w-[1320px] mx-auto">
       <div
@@ -90,10 +107,24 @@ export function Dashboard({ onNavigate, onOpenCommand, onOpenWorkflow }: Dashboa
                   <p className="text-xs uppercase tracking-wide text-primary/80">Current workflow</p>
                   <h2 className="text-xl font-semibold text-foreground mt-1">{nextWorkflow.title}</h2>
                   <p className="text-sm text-muted-foreground mt-2">{nextWorkflow.goal}</p>
+                  {activeSessionStep ? (
+                    <p className="text-xs text-primary mt-3">
+                      Active run mode: step {activeSessionStepNumber} of{" "}
+                      {nextWorkflow.steps.length} - {activeSessionStep.title}
+                    </p>
+                  ) : null}
                 </div>
-                <Button onClick={() => onOpenWorkflow(nextWorkflow.id)}>
-                  Open workflow
-                </Button>
+                <div className="flex flex-col gap-2">
+                  <Button onClick={() => onOpenWorkflow(nextWorkflow.id)}>
+                    {activeSessionMatchesPrimary ? "Resume workflow" : "Open workflow"}
+                  </Button>
+                  {!activeSessionMatchesPrimary ? (
+                    <Button variant="outline" onClick={() => onStartWorkflowSession(nextWorkflow.id)}>
+                      <Play className="w-4 h-4" />
+                      Start run mode
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             </div>
           </CardContent>
