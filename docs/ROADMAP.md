@@ -1,117 +1,172 @@
-# AI Command Center Roadmap
+# AI Control Tower Roadmap
 
-## Phase 0 - Documentation & Product Alignment
+## Phase 1 - Static System
 ### Goal
-Align the repository around a clear product direction before UI or system expansion.
+Ship a usable static control tower for browsing scenarios, workflows, tools, and prompts.
 
-### Key Features
-- Create core product docs
-- Define entities
-- Define MVP scope
-
-### Acceptance Criteria
-- `/docs` folder exists with aligned product, architecture, roadmap, workflows, data model, and decisions docs.
-- Core entities are defined consistently across documents.
-- MVP boundaries and non-goals are explicit enough to generate issues from.
-
-### Risks
-- Documentation drifts from the current codebase if not updated during implementation.
-- Team may interpret "workflow control center" differently without continued decision logging.
-
-## Phase 1 - Static MVP
-### Goal
-Ship a usable frontend-only control center that helps users choose tools, workflows, and prompts without backend complexity.
-
-### Key Features
-- Tool cards
-- Workflow cards
-- Prompt cards
-- Income engine dashboard
-- Decision router
+### Features
+- Static data layer
+- Dashboard / control tower
+- Workflow library
+- Tool registry
+- Prompt library
 - External launch links
+- Copy-to-clipboard prompts
 
 ### Acceptance Criteria
-- User can browse tools, workflows, prompts, and income engines from the UI.
-- User can open external tools from registry and workflow screens.
-- User can copy prompts from both library and workflow contexts.
-- Decision router can route to a recommended workflow using static logic.
+- User can browse workflows, prompts, and tools
+- User can open external tools from workflow and tool views
+- User can copy prompts directly from the app
 
-### Risks
-- Static UX may look more capable than it is if labels imply automation.
-- Without persistence, users may expect saved progress that does not exist yet.
+### Status
+- Done
+
+### Notes
+- Implemented, but still framed in code as income-engine-heavy rather than universal scenario-first
 
 ## Phase 2 - Execution Layer
 ### Goal
-Turn the app from a browse-only dashboard into a guided execution surface.
+Turn the static system into a guided execution system.
 
-### Key Features
-- Active workflow mode
-- Step-by-step execution panel
-- Output tracking
-- Weekly review view
-
-### Acceptance Criteria
-- User can enter a workflow run mode and move step by step.
-- Each step clearly shows goal, tool, prompt, and expected output.
-- User can log outputs manually.
-- Weekly review screen summarizes outputs, blocked workflows, and next actions.
-
-### Risks
-- Execution flows may become too heavy if manual logging feels like admin work.
-- Output tracking can create schema churn before persistence decisions settle.
-
-## Phase 3 - Persistence
-### Goal
-Persist user systems and allow the control center to become personally useful over time.
-
-### Key Features
-- Local storage or lightweight DB
-- User-customizable tools/workflows/prompts
-- Basic status tracking
+### Features
+- Active workflow session / run mode
+- Current-step focus
+- Step navigation
+- Step completion state
+- Output logging
+- Session summary
 
 ### Acceptance Criteria
-- User-created or edited records persist across sessions.
-- Workflow status can be marked as not started, active, blocked, or complete.
-- User can save custom tools, prompts, and workflows without changing system templates.
+- User can start and resume a workflow session
+- User can see one current step at a time
+- User can mark progress inside a session
+- User can log outputs during execution
+- User can review a short session summary before leaving
 
-### Risks
-- Early persistence choices can constrain later API design.
-- Local-only storage may create migration pain when multi-user support arrives.
+### Status
+- Partial
 
-## Phase 4 - Automation Readiness
+### Already Done
+- Active workflow run mode
+- Current-step focus in workflow library
+- Next / previous step navigation
+- Step jumping
+- Prompt copy and tool launch inside run mode
+
+### Missing
+- Step completion state
+- Output logging
+- Blocked / resume notes
+- Session summary / wrap-up
+- Real review layer
+
+## Phase 3 - Persistence + Editability
 ### Goal
-Prepare workflow definitions for external execution systems without building full automation in-product yet.
+Make the system personally durable and editable.
 
-### Key Features
-- OpenClaw-compatible workflow definitions
-- CSV export/import
-- API-ready workflow schema
+### Features
+- Local persistence
+- Editable prompts
+- Editable workflows
+- Editable tools
+- Custom workflow variants
 
 ### Acceptance Criteria
-- Workflow definitions can be exported in a structured format.
-- Import/export preserves stable IDs and step order.
-- Schema supports tool references, prompt references, inputs, outputs, and step types.
+- Scenario and session state persists across refreshes
+- User can edit and save prompts, workflows, and tools
+- Built-in templates remain separate from user-edited records
 
-### Risks
-- Premature schema complexity can slow product iteration.
-- Compatibility requirements may pull the product toward engineering needs before user value is proven.
+### Status
+- Not started
 
-## Phase 5 - Productization
+### Already Done
+- Static templates and shell structure are in place
+
+### Missing
+- Persistence layer
+- Editable records
+- Template vs user-data separation
+
+## Phase 4 - Scenario Expansion + Context Layer
 ### Goal
-Turn the internal operating system into a product-ready platform.
+Expand beyond income-only framing and support context-aware execution across life domains.
 
-### Key Features
-- Multi-user support
-- Templates
+### Features
+- Scenario layer and scenario dashboard
+- Scenario switching
+- Scenario-based filtering
+- Context layer for workflows and steps
+- Universal output system
+- Scenario-based review system
+
+### Acceptance Criteria
+- User can switch between scenarios beyond income work
+- Workflows, prompts, and tools can be filtered by scenario
+- Context can be attached to workflows and steps
+- Outputs and reviews work across all scenarios
+
+### Status
+- Not started
+
+### Already Done
+- Placeholder context manager exists
+- Static workflows already hint at cross-domain expansion
+
+### Missing
+- Real scenario entity in the app
+- Context attachments
+- Universal outputs
+- Review system
+
+## Phase 5 - Automation Readiness
+### Goal
+Prepare the system for export, import, and external execution compatibility without automating in-product yet.
+
+### Features
+- Canonical schema
+- CSV import/export
+- OpenClaw-compatible export adapter
+
+### Acceptance Criteria
+- Workflow definitions are stable and portable
+- Scenario, workflow, context, and output data can be exported/imported safely
+- OpenClaw-compatible export path exists for supported workflow definitions
+
+### Status
+- Not started
+
+### Already Done
+- Static template data gives a starting structure
+
+### Missing
+- Canonical normalized schema
+- Import/export pipeline
+- Automation compatibility layer
+
+## Phase 6 - Productization
+### Goal
+Turn the single-user local system into a product-ready platform.
+
+### Features
+- Multi-user and workspace architecture
+- Template packs
 - Public demo mode
-- Portfolio case study integration
+- Proof / case-study integration
 
 ### Acceptance Criteria
-- Multiple users or workspaces can exist without data leakage.
-- Template packs can be shared or duplicated.
-- Public demo mode communicates product value without requiring setup.
-- Case studies can show before/after workflow outcomes.
+- Product boundaries for users and workspaces are defined
+- Reusable template packs exist
+- Demo mode shows the product clearly without setup
+- Outputs can feed proof assets and case studies
 
-### Risks
-- Productization can distract from proving core user behavior first.
-- Multi-user support introduces auth, permissions, and support complexity quickly.
+### Status
+- Not started
+
+### Already Done
+- Seeded workflows and prompts provide a strong starting template base
+
+### Missing
+- Workspace model
+- Productized onboarding path
+- Demo layer
+- Proof asset layer

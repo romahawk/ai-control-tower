@@ -1,196 +1,154 @@
 # Data Model
 
-## Interfaces
+## Canonical Interfaces
 ```ts
-export type ToolCategory =
-  | "llm"
-  | "research"
-  | "orchestration"
-  | "knowledge"
-  | "analysis"
-  | "delivery"
-
-export type WorkflowStepType =
-  | "decision"
-  | "research"
-  | "prompt"
-  | "launch"
-  | "review"
-  | "output"
-
-export type IncomeEngineType =
-  | "web-agency"
-  | "job-search"
-  | "product-building"
-  | "trading-systems"
-
-export interface Tool {
+export interface Scenario {
   id: string
   name: string
-  category: ToolCategory
   description: string
-  launchUrl: string
-  tags: string[]
-  supportsCopyPaste: boolean
-  notes?: string
+  category: "income-engine" | "life-strategy" | "family-home" | "admin-tasks" | "sport-health" | "custom"
+  activeWorkflowId?: string
+  nextAction?: string
+  linkedWorkflowIds: string[]
 }
 
 export interface Workflow {
   id: string
-  name: string
-  description: string
-  incomeEngineIds: string[]
+  title: string
+  scenarioId: string
+  goal: string
   trigger: string
-  toolIds: string[]
-  promptIds: string[]
-  stepIds: string[]
-  primaryOutputType: string
+  steps: WorkflowStep[]
+  output: string
   successMetric: string
-  status?: "draft" | "active" | "archived"
+  frequency: string
+  status: "draft" | "ready" | "active" | "archived"
 }
 
 export interface WorkflowStep {
   id: string
-  workflowId: string
-  order: number
-  name: string
-  type: WorkflowStepType
-  goal: string
+  title: string
+  description: string
   toolIds: string[]
-  promptId?: string
+  promptIds: string[]
   expectedOutput: string
-  instructions: string[]
+  launchUrl?: string
+}
+
+export interface Tool {
+  id: string
+  name: string
+  category: string
+  role: string
+  bestFor: string
+  avoidWhen: string
+  url: string
+  linkedWorkflowIds: string[]
 }
 
 export interface Prompt {
   id: string
-  name: string
-  description: string
-  content: string
-  tags: string[]
-  variables: string[]
-  recommendedToolIds: string[]
-  workflowIds: string[]
-}
-
-export interface IncomeEngine {
-  id: string
-  name: string
-  type: IncomeEngineType
-  description: string
-  objective: string
-  workflowIds: string[]
-  projectIds: string[]
-  healthStatus: "green" | "yellow" | "red"
-}
-
-export interface Project {
-  id: string
-  name: string
-  description: string
-  incomeEngineId?: string
-  workflowIds: string[]
-  activeContext: string[]
-  status: "idea" | "active" | "paused" | "done"
-}
-
-export interface DecisionLog {
-  id: string
-  date: string
   title: string
-  context: string
-  decision: string
-  reason: string
-  relatedEntityIds: string[]
-  nextAction?: string
+  category: string
+  content: string
+  linkedToolId: string
+  linkedWorkflowId: string
+  linkedProjectId?: string
+}
+
+export interface Context {
+  id: string
+  type: "note" | "link" | "file" | "doc"
+  content: string
+  linkedWorkflowId?: string
+  linkedStepId?: string
+}
+
+export interface WorkflowSession {
+  id: string
+  scenarioId: string
+  workflowId: string
+  currentStepIndex: number
+  completedStepIds: string[]
+  outputs: Output[]
+  status: "idle" | "active" | "blocked" | "completed"
+  startedAt: string
+  completedAt?: string
 }
 
 export interface Output {
   id: string
+  scenarioId: string
+  workflowId: string
   type: string
   title: string
-  summary: string
-  workflowId?: string
-  projectId?: string
-  toolId?: string
+  value: string
+  note?: string
   createdAt: string
-  location?: string
+}
+
+export interface Review {
+  id: string
+  scenarioId: string
+  title: string
+  summary: string
+  linkedOutputIds: string[]
+  nextAction?: string
+  createdAt: string
 }
 ```
 
 ## Example Objects
 ```ts
-export const perplexity: Tool = {
-  id: "tool-perplexity",
-  name: "Perplexity",
-  category: "research",
-  description: "AI-assisted search for fast research and source gathering.",
-  launchUrl: "https://perplexity.ai",
-  tags: ["research", "search", "briefs"],
-  supportsCopyPaste: true,
-  notes: "Best used for fast discovery, sourcing, and first-pass synthesis."
+export const incomeEngineScenario: Scenario = {
+  id: "scenario-income-engine",
+  name: "Income Engine",
+  description: "Revenue, career, and proof-building workflows.",
+  category: "income-engine",
+  activeWorkflowId: "agency-lead-generation",
+  nextAction: "Resume Agency Lead Generation step 2.",
+  linkedWorkflowIds: [
+    "agency-lead-generation",
+    "high-fit-job-discovery",
+    "product-case-study-extraction",
+    "trading-review"
+  ]
 }
 
-export const openClaw: Tool = {
-  id: "tool-openclaw",
-  name: "OpenClaw",
-  category: "orchestration",
-  description: "Workflow execution and automation runtime for future-compatible flow definitions.",
-  launchUrl: "https://github.com",
-  tags: ["automation", "workflow", "execution"],
-  supportsCopyPaste: false,
-  notes: "Not required for MVP; included for automation-readiness planning."
+export const workflowSession: WorkflowSession = {
+  id: "session-agency-001",
+  scenarioId: "scenario-income-engine",
+  workflowId: "agency-lead-generation",
+  currentStepIndex: 1,
+  completedStepIds: ["agency-step-1"],
+  outputs: [],
+  status: "active",
+  startedAt: "2026-04-27T08:00:00.000Z"
 }
 
-export const obsidian: Tool = {
-  id: "tool-obsidian",
-  name: "Obsidian",
-  category: "knowledge",
-  description: "Knowledge base for storing research, notes, decisions, and outputs.",
-  launchUrl: "https://obsidian.md",
-  tags: ["notes", "knowledge", "review"],
-  supportsCopyPaste: true
+export const workflowContext: Context = {
+  id: "context-agency-offer",
+  type: "note",
+  content: "Target Hamburg service businesses with weak mobile UX and outdated conversion flow.",
+  linkedWorkflowId: "agency-lead-generation",
+  linkedStepId: "agency-step-2"
 }
 
-export const agencyLeadGenerationWorkflow: Workflow = {
-  id: "wf-agency-lead-generation",
-  name: "Agency Lead Generation",
-  description: "Find, qualify, and prepare outreach-ready agency leads.",
-  incomeEngineIds: ["engine-web-agency"],
-  trigger: "Pipeline needs qualified leads or a new niche outreach sprint starts.",
-  toolIds: ["tool-perplexity", "tool-obsidian"],
-  promptIds: ["prompt-agency-lead-research"],
-  stepIds: [
-    "step-agency-lead-criteria",
-    "step-agency-lead-research",
-    "step-agency-lead-qualify",
-    "step-agency-lead-hooks",
-    "step-agency-lead-export"
-  ],
-  primaryOutputType: "qualified-lead-list",
-  successMetric: "Number of qualified leads generated per session",
-  status: "active"
-}
-
-export const webAgencyIncomeEngine: IncomeEngine = {
-  id: "engine-web-agency",
-  name: "Web Agency",
-  type: "web-agency",
-  description: "Income engine focused on acquiring, delivering, and compounding agency work.",
-  objective: "Generate consistent client revenue through repeatable service workflows.",
-  workflowIds: [
-    "wf-agency-lead-generation",
-    "wf-product-case-study-extraction",
-    "wf-weekly-income-engine-review"
-  ],
-  projectIds: ["project-agency-growth"],
-  healthStatus: "yellow"
+export const workflowOutput: Output = {
+  id: "output-agency-leads-001",
+  scenarioId: "scenario-income-engine",
+  workflowId: "agency-lead-generation",
+  type: "lead-list",
+  title: "Hamburg SME lead shortlist",
+  value: "15 qualified businesses with notes and pain points",
+  note: "Ready for hook drafting",
+  createdAt: "2026-04-27T08:35:00.000Z"
 }
 ```
 
 ## Modeling Notes
-- `Workflow` is the orchestration unit.
-- `WorkflowStep` is the smallest execution unit.
-- `Prompt` and `Tool` are reusable dependencies that can be referenced by many workflows.
-- `IncomeEngine` groups workflows by economic objective rather than by feature area.
-- `Output` and `DecisionLog` are the bridge from tool usage to learning and compounding results.
+- `Scenario` replaces the old income-engine-first framing
+- `WorkflowSession` is the live execution state and must stay separate from workflow templates
+- `Output` is universal and should not assume only revenue-related value
+- `Context` should attach to either a workflow or an individual step
+- `Review` is a derived layer built from outputs and execution signals

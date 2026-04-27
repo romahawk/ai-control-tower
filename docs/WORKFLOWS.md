@@ -1,179 +1,148 @@
-# Initial Workflows
+# Workflows By Scenario
 
-## Agency Lead Generation
-### Goal
-Create a repeatable system for identifying, qualifying, and preparing outreach targets for a web agency.
+This file reflects both:
+- current seeded workflows already in the app
+- planned next workflows needed for scenario expansion
 
-### Trigger
-- Need a fresh lead list
-- Pipeline below target
-- Starting a new niche outreach sprint
+## Income Engine
 
-### Tools Used
-- Perplexity
-- Google Maps / LinkedIn / directories
-- Obsidian
-- Spreadsheet or CRM
+### Agency Lead Generation
+- Goal: Generate qualified outreach-ready agency leads
+- Scenario: Income Engine
+- Steps:
+  1. Define lead criteria
+  2. Research likely-fit companies
+  3. Qualify and trim the list
+  4. Draft outreach hooks
+  5. Save and send
+- Tools: Perplexity, LinkedIn, Obsidian, ChatGPT, Gmail
+- Outputs: Lead shortlist, outreach hooks, sent outreach
 
-### Steps
-1. Define niche, geography, and offer criteria.
-2. Research potential businesses and gather candidate leads.
-3. Qualify leads based on fit, website quality, and likely pain points.
-4. Draft personalized outreach hooks using saved prompts.
-5. Export or save the final lead list for outreach.
+### High-Fit Job Discovery
+- Goal: Find strong-fit roles instead of scanning broad job boards
+- Scenario: Income Engine
+- Steps:
+  1. Set role criteria
+  2. Gather openings
+  3. Extract application angles
+- Tools: Perplexity, LinkedIn, ChatGPT, Obsidian
+- Outputs: Ranked shortlist, application angles
 
-### Output
-- Qualified lead list with notes and outreach angle
+### Trading Review
+- Goal: Improve trading quality through structured review
+- Scenario: Income Engine
+- Steps:
+  1. Capture the trade setup
+  2. Debrief the decision
+- Tools: Obsidian, ChatGPT
+- Outputs: Trade review note, next-rule lesson
 
-### Success Metric
-- Number of qualified leads generated per session
+## Life Strategy
 
-### Notes / Future Automation Potential
-- Can later automate lead enrichment, scoring, and export formatting.
+### Weekly Planning
+- Goal: Choose the next most important focus across active scenarios
+- Scenario: Life Strategy
+- Steps:
+  1. Review active scenarios
+  2. Summarize open loops
+  3. Pick weekly priorities
+- Tools: Obsidian, AI Control Tower
+- Outputs: Weekly plan, top 3 priorities
 
-## High-Fit Job Discovery
-### Goal
-Find high-fit roles worth applying to instead of scanning listings randomly.
+### Decision Audit
+- Goal: Reduce repeated poor decisions by reviewing recent choices
+- Scenario: Life Strategy
+- Steps:
+  1. Capture decision context
+  2. Review alternatives and tradeoffs
+  3. Write the next decision rule
+- Tools: Obsidian, ChatGPT
+- Outputs: Decision note, new rule or heuristic
 
-### Trigger
-- Beginning a weekly job search cycle
-- Need new opportunities after rejections or silence
+## Family & Home
 
-### Tools Used
-- Perplexity
-- LinkedIn
-- Company career pages
-- Obsidian
+### Home Project Planning
+- Goal: Turn a vague home task into a clear execution plan
+- Scenario: Family & Home
+- Steps:
+  1. Define the project
+  2. Break it into steps
+  3. List materials, timing, and blockers
+- Tools: Obsidian, Perplexity
+- Outputs: Home project plan
 
-### Steps
-1. Define role criteria, target compensation, and exclusions.
-2. Gather fresh job opportunities from multiple sources.
-3. Score roles for fit based on skills, seniority, and company alignment.
-4. Extract application notes and custom angles for top roles.
-5. Queue shortlisted roles for resume and outreach execution.
+### Family Weekly Coordination
+- Goal: Reduce mental overhead around recurring coordination
+- Scenario: Family & Home
+- Steps:
+  1. Review upcoming obligations
+  2. Capture decisions and handoffs
+  3. Confirm priorities for the week
+- Tools: Obsidian, Gmail
+- Outputs: Shared weekly coordination list
 
-### Output
-- Ranked shortlist of high-fit jobs with application notes
+## Admin Tasks
 
-### Success Metric
-- Number of shortlisted roles worth applying to this week
+### Document Organization
+- Goal: Organize important documents into a repeatable retrieval system
+- Scenario: Admin Tasks
+- Steps:
+  1. Gather documents
+  2. Categorize and rename
+  3. Record what is still missing
+- Tools: Obsidian, file system
+- Outputs: Organized document map
 
-### Notes / Future Automation Potential
-- Can later add job scraping, fit scoring, and application tracking integrations.
+### AfA Reporting
+- Goal: Structure a repeatable admin workflow for tax-relevant equipment tracking
+- Scenario: Admin Tasks
+- Steps:
+  1. Collect purchase records
+  2. Categorize relevant items
+  3. Summarize what needs to be reported
+- Tools: Obsidian, spreadsheet
+- Outputs: AfA-ready reporting summary
 
-## Product Case Study Extraction
-### Goal
-Turn shipped work, experiments, or client outcomes into reusable product or portfolio case studies.
+## Sport & Health
 
-### Trigger
-- Project milestone completed
-- New result worth sharing
-- Need proof assets for product marketing or portfolio
+### Training Plan
+- Goal: Translate a fitness goal into a weekly training structure
+- Scenario: Sport & Health
+- Steps:
+  1. Define target outcome
+  2. Build the weekly plan
+  3. Note recovery and constraints
+- Tools: Obsidian, ChatGPT
+- Outputs: Weekly training plan
 
-### Tools Used
-- Obsidian
-- ChatGPT or Claude
-- Screenshot capture tools
+### Weekly Fitness Review
+- Goal: Review progress and decide the next training adjustment
+- Scenario: Sport & Health
+- Steps:
+  1. Review sessions completed
+  2. Note fatigue, recovery, and adherence
+  3. Adjust next week
+- Tools: Obsidian
+- Outputs: Review note, next adjustment
 
-### Steps
-1. Gather raw project facts, screenshots, and outcomes.
-2. Extract the problem, approach, and measurable result.
-3. Draft a structured case study using a saved prompt.
-4. Refine for audience: client, recruiter, or customer.
-5. Save final narrative and supporting assets.
+## Custom
 
-### Output
-- Reusable case study draft or final write-up
+### Learning Sprint Compression
+- Goal: Compress a topic into one short execution-oriented sprint
+- Scenario: Custom
+- Steps:
+  1. Define the learning outcome
+  2. Compress sources
+  3. Turn learning into an artifact
+- Tools: Perplexity, ChatGPT, Codex, Obsidian
+- Outputs: Condensed learning brief, proof-of-learning output
 
-### Success Metric
-- Number of publishable case studies produced per month
-
-### Notes / Future Automation Potential
-- Can later auto-generate case study drafts from logged outputs and project metadata.
-
-## Weekly Income Engine Review
-### Goal
-Review all active income engines and decide the highest-leverage focus for the coming week.
-
-### Trigger
-- Weekly planning or Sunday review
-
-### Tools Used
-- AI Command Center
-- Obsidian
-- Spreadsheet or dashboard
-
-### Steps
-1. Review outputs created in each income engine.
-2. Identify what moved revenue or career progress forward.
-3. Mark stalled workflows and blockers.
-4. Decide which engine deserves primary focus next week.
-5. Set 1 to 3 concrete workflow commitments.
-
-### Output
-- Weekly focus decision with prioritized workflow list
-
-### Success Metric
-- Clear weekly priority set with at least one committed workflow per active engine
-
-### Notes / Future Automation Potential
-- Can later auto-summarize outputs, decisions, and blocked steps into a review brief.
-
-## Trading Review
-### Goal
-Improve trading decisions through structured post-trade and weekly review rather than impulsive iteration.
-
-### Trigger
-- Trade completed
-- End of trading day
-- End of trading week
-
-### Tools Used
-- Trading platform
-- Obsidian
-- Spreadsheet
-- ChatGPT or Claude
-
-### Steps
-1. Record the trade setup, execution, and result.
-2. Note whether the trade matched the system rules.
-3. Review emotional, timing, and risk-management factors.
-4. Summarize recurring mistakes or strengths.
-5. Decide one system adjustment or behavior rule for the next cycle.
-
-### Output
-- Trade review note with lessons and next-rule decision
-
-### Success Metric
-- Share of reviewed trades with rule adherence and lesson capture
-
-### Notes / Future Automation Potential
-- Can later ingest CSV exports and auto-generate review summaries.
-
-## Learning Sprint Compression
-### Goal
-Compress a broad topic into a focused learning sprint tied to an execution outcome.
-
-### Trigger
-- Need to learn a new skill quickly for a project or income engine
-
-### Tools Used
-- Perplexity
-- ChatGPT or Claude
-- Obsidian
-
-### Steps
-1. Define the desired outcome and timebox.
-2. Gather the highest-signal sources on the topic.
-3. Summarize key concepts into an action-oriented brief.
-4. Convert the brief into a mini practice plan.
-5. Produce one concrete output that proves learning.
-
-### Output
-- Condensed learning brief plus execution plan
-
-### Success Metric
-- One useful project-ready output produced from the sprint
-
-### Notes / Future Automation Potential
-- Can later automate source collection, summarization, and sprint plan generation.
+### Product Case Study Extraction
+- Goal: Turn shipped work into proof assets and case studies
+- Scenario: Custom
+- Steps:
+  1. Collect raw artifacts
+  2. Extract the story
+  3. Pull proof points
+- Tools: Obsidian, GitHub, ChatGPT
+- Outputs: Case study draft, proof bullets
