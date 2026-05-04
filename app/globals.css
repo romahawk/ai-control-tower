@@ -23,13 +23,20 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.587 0.21 258);
-  --radius: 0.5rem;
+  --radius: 0.75rem;
   --surface: oklch(0.95 0 0);
   --surface-raised: oklch(0.92 0 0);
+  --success: oklch(0.62 0.18 151);
+  --success-foreground: oklch(0.98 0 0);
+  --warning: oklch(0.74 0.16 75);
+  --warning-foreground: oklch(0.18 0.02 75);
+  --info: oklch(0.6 0.17 258);
+  --info-foreground: oklch(0.98 0 0);
+  --knowledge: oklch(0.62 0.2 304);
+  --knowledge-foreground: oklch(0.98 0 0);
 }
 
 .dark {
-  /* AI Command Center — Deep Navy Theme */
   --background: oklch(0.128 0.035 255);
   --foreground: oklch(0.92 0.01 252);
   --card: oklch(0.165 0.038 254);
@@ -56,6 +63,14 @@
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
+  --success: oklch(0.7 0.16 151);
+  --success-foreground: oklch(0.12 0.02 151);
+  --warning: oklch(0.78 0.14 75);
+  --warning-foreground: oklch(0.17 0.03 75);
+  --info: oklch(0.66 0.18 258);
+  --info-foreground: oklch(0.12 0.04 255);
+  --knowledge: oklch(0.71 0.17 304);
+  --knowledge-foreground: oklch(0.12 0.04 300);
 }
 
 @theme inline {
@@ -91,14 +106,24 @@
   --radius-xl: calc(var(--radius) + 4px);
   --color-surface: var(--surface);
   --color-surface-raised: var(--surface-raised);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-knowledge: var(--knowledge);
+  --color-knowledge-foreground: var(--knowledge-foreground);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "ss01" 1, "cv01" 1, "cv11" 1;
   }
 }
 
@@ -106,26 +131,59 @@
   .glow-blue {
     box-shadow: 0 0 24px oklch(0.587 0.21 258 / 0.25);
   }
+
   .glow-blue-sm {
     box-shadow: 0 0 12px oklch(0.587 0.21 258 / 0.18);
   }
+
   .glass {
     background: oklch(0.165 0.038 254 / 0.85);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
   }
+
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: oklch(0.265 0.036 254) transparent;
   }
+
   .scrollbar-thin::-webkit-scrollbar {
     width: 4px;
   }
+
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
   }
+
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background: oklch(0.265 0.036 254);
     border-radius: 2px;
+  }
+
+  .surface-panel {
+    @apply border border-border bg-card/70 shadow-sm;
+  }
+
+  .surface-subtle {
+    @apply border border-border bg-secondary/20;
+  }
+
+  .surface-emphasis {
+    background:
+      radial-gradient(circle at top right, oklch(0.66 0.18 258 / 0.16), transparent 34%),
+      linear-gradient(180deg, oklch(0.19 0.04 255 / 0.95), oklch(0.16 0.035 255 / 0.98));
+    @apply border border-primary/20;
+  }
+
+  .text-display {
+    @apply text-3xl font-semibold tracking-tight md:text-4xl;
+  }
+
+  .text-heading {
+    @apply text-xl font-semibold tracking-tight;
+  }
+
+  .text-subheading {
+    @apply text-sm text-muted-foreground;
   }
 }

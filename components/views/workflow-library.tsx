@@ -1,525 +1,610 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
-  Check,
+  Bot,
+  CheckCircle2,
   Copy,
+  Database,
   ExternalLink,
-  Play,
+  Flag,
+  GitBranch,
+  ListChecks,
+  MessageSquare,
+  PauseCircle,
+  PlayCircle,
   Search,
-  Square,
 } from "lucide-react"
-import { INCOME_ENGINES } from "@/data/income-engines"
-import { PROMPTS } from "@/data/prompts"
-import { TOOLS } from "@/data/tools"
-import { WORKFLOWS } from "@/data/workflows"
-import { Badge } from "@/components/ui/badge"
+import { EmptyState } from "@/components/ui/empty-state"
+import { InfoCallout } from "@/components/ui/info-callout"
+import { SectionHeader } from "@/components/ui/section-header"
+import { StatusBadge } from "@/components/ui/status-badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
-import type { ActiveWorkflowSession } from "@/types"
+import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
+import { getContextIcon, getScenarioIcon, getStatusMeta } from "@/lib/ui-meta"
+import type { ContextRecord, Prompt, Scenario, Tool, Workflow, WorkflowSession } from "@/types"
 
 interface WorkflowLibraryProps {
-  selectedWorkflowId: string
+  selectedScenario: Scenario
+  workflows: Workflow[]
+  selectedWorkflow: Workflow
+  activeSession: WorkflowSession | undefined
+  workflowSessions: WorkflowSession[]
+  currentStepIndex: number
+  stepPrompts: Prompt[]
+  stepTools: Tool[]
+  stepContexts: ContextRecord[]
+  executionPack: string
   onSelectWorkflow: (workflowId: string) => void
-  activeWorkflowSession: ActiveWorkflowSession | null
   onStartWorkflowSession: (workflowId: string) => void
-  onEndWorkflowSession: () => void
+  onSetActiveSession: (sessionId?: string) => void
+  onResumeWorkflowSession: (sessionId: string, resumeNote: string) => void
   onMoveWorkflowStep: (direction: 1 | -1) => void
-  onJumpToWorkflowStep: (stepIndex: number) => void
+  onJumpToWorkflowStep: (stepId: string) => void
+  onCompleteCurrentStep: () => void
+  onSaveWorkflowOutput: (params: {
+    title: string
+    content: string
+    type: "note" | "decision" | "link" | "artifact" | "summary"
+    stepId?: string
+    toolId?: string
+    promptId?: string
+  }) => void
+  onBlockSession: (note: string) => void
+  onPauseSession: (note: string) => void
+  onResumeSession: (note: string) => void
+  onFinishSession: (summary: string) => void
+  onSaveSessionSummary: (summary: string) => void
+  getCompletedStepsCount: (session: WorkflowSession) => number
 }
 
 export function WorkflowLibrary({
-  selectedWorkflowId,
+  selectedScenario,
+  workflows,
+  selectedWorkflow,
+  activeSession,
+  workflowSessions,
+  currentStepIndex,
+  stepPrompts,
+  stepTools,
+  stepContexts,
+  executionPack,
   onSelectWorkflow,
-  activeWorkflowSession,
   onStartWorkflowSession,
-  onEndWorkflowSession,
+  onSetActiveSession,
+  onResumeWorkflowSession,
   onMoveWorkflowStep,
   onJumpToWorkflowStep,
+  onCompleteCurrentStep,
+  onSaveWorkflowOutput,
+  onBlockSession,
+  onPauseSession,
+  onResumeSession,
+  onFinishSession,
+  onSaveSessionSummary,
+  getCompletedStepsCount,
 }: WorkflowLibraryProps) {
   const [query, setQuery] = useState("")
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null)
+  const [copiedPack, setCopiedPack] = useState(false)
+  const [outputTitle, setOutputTitle] = useState("")
+  const [outputContent, setOutputContent] = useState("")
+  const [resumeDraft, setResumeDraft] = useState(activeSession?.resumeNote ?? "")
+  const [blockerDraft, setBlockerDraft] = useState(activeSession?.blockerNote ?? "")
+  const [summaryDraft, setSummaryDraft] = useState(activeSession?.summary ?? "")
+  const [previewStepId, setPreviewStepId] = useState(selectedWorkflow.steps[0]?.id ?? "")
 
-  const filteredWorkflows = WORKFLOWS.filter((workflow) => {
-    const engine = INCOME_ENGINES.find((item) => item.id === workflow.incomeEngineId)
-    const search = query.toLowerCase()
-    return (
-      search === "" ||
-      workflow.title.toLowerCase().includes(search) ||
-      workflow.goal.toLowerCase().includes(search) ||
-      workflow.output.toLowerCase().includes(search) ||
-      engine?.name.toLowerCase().includes(search)
-    )
-  })
+  const filteredWorkflows = useMemo(() => {
+    const search = query.trim().toLowerCase()
+    return workflows.filter((workflow) => {
+      if (!search) return true
+      return (
+        workflow.title.toLowerCase().includes(search) ||
+        workflow.goal.toLowerCase().includes(search) ||
+        workflow.output.toLowerCase().includes(search)
+      )
+    })
+  }, [query, workflows])
 
   useEffect(() => {
-    if (!filteredWorkflows.some((workflow) => workflow.id === selectedWorkflowId) && filteredWorkflows[0]) {
+    if (!filteredWorkflows.some((workflow) => workflow.id === selectedWorkflow.id) && filteredWorkflows[0]) {
       onSelectWorkflow(filteredWorkflows[0].id)
     }
-  }, [filteredWorkflows, onSelectWorkflow, selectedWorkflowId])
+  }, [filteredWorkflows, onSelectWorkflow, selectedWorkflow.id])
 
-  const selectedWorkflow =
-    filteredWorkflows.find((workflow) => workflow.id === selectedWorkflowId) ??
-    filteredWorkflows[0] ??
-    null
-  const isActiveRunMode = !!selectedWorkflow && activeWorkflowSession?.workflowId === selectedWorkflow.id
-  const currentStepIndex = isActiveRunMode && selectedWorkflow
-    ? Math.min(activeWorkflowSession.currentStepIndex, selectedWorkflow.steps.length - 1)
+  useEffect(() => {
+    setResumeDraft(activeSession?.resumeNote ?? "")
+    setBlockerDraft(activeSession?.blockerNote ?? "")
+    setSummaryDraft(activeSession?.summary ?? "")
+    if (activeSession?.workflowId === selectedWorkflow.id) {
+      setPreviewStepId(activeSession.currentStepId ?? selectedWorkflow.steps[0]?.id ?? "")
+    } else {
+      setPreviewStepId(selectedWorkflow.steps[0]?.id ?? "")
+    }
+  }, [activeSession, selectedWorkflow])
+
+  const selectedWorkflowSession = activeSession?.workflowId === selectedWorkflow.id ? activeSession : undefined
+  const selectedStep = selectedWorkflowSession
+    ? selectedWorkflow.steps.find((step) => step.id === selectedWorkflowSession.currentStepId) ?? selectedWorkflow.steps[0]
+    : selectedWorkflow.steps.find((step) => step.id === previewStepId) ?? selectedWorkflow.steps[0]
+  const currentStepExecution = selectedWorkflowSession?.stepExecutions.find(
+    (stepExecution) => stepExecution.stepId === selectedStep?.id
+  )
+  const completedStepsCount = selectedWorkflowSession ? getCompletedStepsCount(selectedWorkflowSession) : 0
+  const progress = selectedWorkflowSession && selectedWorkflow.steps.length > 0
+    ? (completedStepsCount / selectedWorkflow.steps.length) * 100
     : 0
-  const currentStep = isActiveRunMode && selectedWorkflow ? selectedWorkflow.steps[currentStepIndex] : null
-  const currentStepTools = currentStep
-    ? TOOLS.filter((tool) => currentStep.toolIds.includes(tool.id))
-    : []
-  const currentStepPrompts = currentStep
-    ? PROMPTS.filter((prompt) => currentStep.promptIds.includes(prompt.id))
-    : []
-  const progressValue =
-    isActiveRunMode && selectedWorkflow
-      ? ((currentStepIndex + 1) / selectedWorkflow.steps.length) * 100
-      : 0
 
-  const copyPrompt = async (promptId: string, content: string) => {
-    await navigator.clipboard.writeText(content)
-    setCopiedPromptId(promptId)
-    setTimeout(() => setCopiedPromptId(null), 1500)
+  const copyText = async (text: string, mode: "pack" | "prompt", promptId?: string) => {
+    await navigator.clipboard.writeText(text)
+    if (mode === "pack") {
+      setCopiedPack(true)
+      window.setTimeout(() => setCopiedPack(false), 1500)
+      return
+    }
+
+    setCopiedPromptId(promptId ?? null)
+    window.setTimeout(() => setCopiedPromptId(null), 1500)
   }
 
+  const saveOutput = () => {
+    if (!selectedStep || outputTitle.trim() === "" || outputContent.trim() === "") return
+    onSaveWorkflowOutput({
+      title: outputTitle.trim(),
+      content: outputContent.trim(),
+      type: "artifact",
+      stepId: selectedStep.id,
+      toolId: stepTools[0]?.id,
+      promptId: stepPrompts[0]?.id,
+    })
+    setOutputTitle("")
+    setOutputContent("")
+  }
+
+  const ScenarioIcon = getScenarioIcon(selectedScenario.category)
+
   return (
-    <div className="flex h-full">
-      <aside className="w-[420px] flex-shrink-0 border-r border-border bg-card/30">
-        <div className="border-b border-border p-5 space-y-4">
-          <div>
-            <h1 className="text-xl font-semibold text-foreground">Workflow Library</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Manual execution systems with a focused run mode for one step at a time.
-            </p>
-          </div>
-          <div className="relative">
-            <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search workflows..."
-              className="w-full rounded-xl border border-border bg-secondary/40 py-2.5 pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary/40"
+    <div className="h-full overflow-hidden p-4">
+      <div className="mx-auto grid h-full max-w-[1320px] gap-4 xl:grid-cols-[320px_1fr]">
+        <aside className="surface-panel flex min-h-0 flex-col overflow-hidden rounded-3xl">
+          <div className="border-b border-border p-4">
+            <SectionHeader
+              icon={GitBranch}
+              title="Workflow Library"
+              description="Choose a workflow, then focus on one visible step and one output at a time."
             />
-          </div>
-        </div>
-
-        <div className="h-[calc(100%-145px)] overflow-y-auto scrollbar-thin p-3 space-y-3">
-          {filteredWorkflows.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border p-6 text-sm text-muted-foreground">
-              No workflows found.
+            <div className="relative mt-4">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search workflows..." className="pl-9" />
             </div>
-          ) : (
-            filteredWorkflows.map((workflow) => {
-              const engine = INCOME_ENGINES.find((item) => item.id === workflow.incomeEngineId)
-              const toolNames = workflow.steps
-                .flatMap((step) => step.toolIds)
-                .map((toolId) => TOOLS.find((tool) => tool.id === toolId)?.name)
-                .filter(Boolean)
+          </div>
 
-              const dedupedTools = [...new Set(toolNames)].slice(0, 3)
-              const isActive = selectedWorkflow?.id === workflow.id
-
+          <div className="min-h-0 space-y-2 overflow-y-auto p-3">
+            {filteredWorkflows.map((workflow) => {
+              const workflowSession = workflowSessions.find((session) => session.workflowId === workflow.id)
+              const isSelected = workflow.id === selectedWorkflow.id
               return (
                 <button
                   key={workflow.id}
                   onClick={() => onSelectWorkflow(workflow.id)}
-                  className={`w-full rounded-xl border p-4 text-left transition-colors ${
-                    isActive
-                      ? "border-primary/30 bg-primary/8"
-                      : "border-border bg-secondary/20 hover:border-primary/20 hover:bg-secondary/35"
-                  }`}
+                  className={cn(
+                    "rounded-2xl border p-4 text-left transition-colors",
+                    isSelected
+                      ? "border-primary/25 bg-primary/10"
+                      : "border-border bg-secondary/20 hover:border-primary/15 hover:bg-secondary/30"
+                  )}
                 >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-foreground">{workflow.title}</p>
-                    <p className="text-sm text-muted-foreground mt-1">{workflow.goal}</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground">{workflow.title}</p>
+                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{workflow.goal}</p>
+                    </div>
+                    <StatusBadge status={workflowSession?.status ?? workflow.status} />
                   </div>
-                  <Badge
-                    variant="outline"
-                    className={
-                      activeWorkflowSession?.workflowId === workflow.id
-                        ? "border-primary/30 text-primary"
-                        : "border-border text-muted-foreground"
-                    }
-                  >
-                    {activeWorkflowSession?.workflowId === workflow.id ? "In Run Mode" : workflow.status}
-                  </Badge>
-                </div>
-                  <div className="mt-4 space-y-2 text-xs text-muted-foreground">
-                    <p>Income engine: {engine?.name ?? "Unlinked"}</p>
-                    <p>Expected output: {workflow.output}</p>
-                    <p>Success metric: {workflow.successMetric}</p>
-                    <p>Tools: {dedupedTools.join(", ") || "No tools linked"}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="rounded-full border border-border bg-secondary/30 px-2.5 py-1 text-[11px] text-muted-foreground">{workflow.steps.length} steps</span>
+                    <span className="rounded-full border border-border bg-secondary/30 px-2.5 py-1 text-[11px] text-muted-foreground">{workflow.frequency}</span>
                   </div>
                 </button>
               )
-            })
-          )}
-        </div>
-      </aside>
+            })}
+            {filteredWorkflows.length === 0 ? (
+              <EmptyState
+                icon={GitBranch}
+                title="No workflows found"
+                description="Try a broader search or switch to another scenario."
+              />
+            ) : null}
+          </div>
+        </aside>
 
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-6">
-        {selectedWorkflow ? (
-          <div className="space-y-6">
-            <Card className="border-border bg-card/70">
-              <CardHeader className="gap-3">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <CardTitle>{selectedWorkflow.title}</CardTitle>
-                    <CardDescription className="mt-1">{selectedWorkflow.goal}</CardDescription>
+        <div className="min-h-0 overflow-auto">
+          <div className="space-y-4">
+            <Card className="surface-panel rounded-3xl">
+              <CardContent className="p-5">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1.5">
+                        <ScenarioIcon className="h-3.5 w-3.5" />
+                        {selectedScenario.name}
+                      </span>
+                      <ArrowRight className="h-3.5 w-3.5" />
+                      <span>{selectedWorkflow.title}</span>
+                      {selectedStep ? (
+                        <>
+                          <ArrowRight className="h-3.5 w-3.5" />
+                          <span className="font-medium text-foreground">{selectedStep.title}</span>
+                        </>
+                      ) : null}
+                    </div>
+                    <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">{selectedWorkflow.title}</h1>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{selectedWorkflow.goal}</p>
                   </div>
-                  <Badge variant="outline" className="border-primary/20 text-primary">
-                    {INCOME_ENGINES.find((engine) => engine.id === selectedWorkflow.incomeEngineId)?.name ??
-                      "No engine"}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-xl border border-border bg-secondary/25 p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Trigger</p>
-                    <p className="text-sm text-foreground mt-2">{selectedWorkflow.trigger}</p>
-                  </div>
-                  <div className="rounded-xl border border-border bg-secondary/25 p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Output</p>
-                    <p className="text-sm text-foreground mt-2">{selectedWorkflow.output}</p>
-                  </div>
-                  <div className="rounded-xl border border-border bg-secondary/25 p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Success metric</p>
-                    <p className="text-sm text-foreground mt-2">{selectedWorkflow.successMetric}</p>
-                  </div>
-                  <div className="rounded-xl border border-border bg-secondary/25 p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Frequency</p>
-                    <p className="text-sm text-foreground mt-2">{selectedWorkflow.frequency}</p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  <Button onClick={() => onStartWorkflowSession(selectedWorkflow.id)}>
-                    <Play className="w-4 h-4" />
-                    {isActiveRunMode ? "Restart run mode" : "Start workflow"}
-                  </Button>
-                  {isActiveRunMode ? (
-                    <Button variant="outline" onClick={onEndWorkflowSession}>
-                      <Square className="w-4 h-4" />
-                      End run mode
+                  <div className="flex flex-wrap gap-2">
+                    {selectedWorkflowSession ? <StatusBadge status={selectedWorkflowSession.status} /> : <StatusBadge status={selectedWorkflow.status} />}
+                    <Button onClick={() => onStartWorkflowSession(selectedWorkflow.id)}>
+                      <PlayCircle className="h-4 w-4" />
+                      {selectedWorkflowSession ? "Start new session" : "Start session"}
                     </Button>
-                  ) : null}
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-4">
+                  <div className="surface-subtle rounded-2xl p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Current state</p>
+                    <p className="mt-2 text-sm font-medium text-foreground">{selectedWorkflowSession ? selectedWorkflowSession.status : "Preview mode"}</p>
+                  </div>
+                  <div className="surface-subtle rounded-2xl p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Progress</p>
+                    <p className="mt-2 text-sm font-medium text-foreground">{selectedWorkflowSession ? `${completedStepsCount}/${selectedWorkflow.steps.length} steps complete` : `${selectedWorkflow.steps.length} total steps`}</p>
+                  </div>
+                  <div className="surface-subtle rounded-2xl p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Expected workflow output</p>
+                    <p className="mt-2 text-sm text-foreground">{selectedWorkflow.output}</p>
+                  </div>
+                  <div className="surface-subtle rounded-2xl p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Success metric</p>
+                    <p className="mt-2 text-sm text-foreground">{selectedWorkflow.successMetric}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            {isActiveRunMode && currentStep ? (
-              <Card className="border-primary/20 bg-card/80">
-                <CardHeader className="gap-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <Badge variant="secondary" className="bg-primary/10 text-primary border border-primary/20">
-                          Active Run Mode
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          Step {currentStepIndex + 1} of {selectedWorkflow.steps.length}
-                        </span>
-                      </div>
-                      <CardTitle>{currentStep.title}</CardTitle>
-                      <CardDescription className="mt-1">{currentStep.description}</CardDescription>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => onMoveWorkflowStep(-1)}
-                        disabled={currentStepIndex === 0}
-                      >
-                        <ArrowLeft className="w-4 h-4" />
-                        Previous
-                      </Button>
-                      <Button
-                        onClick={() => onMoveWorkflowStep(1)}
-                        disabled={currentStepIndex === selectedWorkflow.steps.length - 1}
-                      >
-                        Next step
-                        <ArrowRight className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>Workflow progress</span>
-                      <span>{Math.round(progressValue)}%</span>
-                    </div>
-                    <Progress value={progressValue} />
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <div className="rounded-xl border border-border bg-secondary/25 p-4">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Current step goal</p>
-                      <p className="text-sm text-foreground mt-2">{currentStep.description}</p>
-                    </div>
-                    <div className="rounded-xl border border-border bg-secondary/25 p-4">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Expected output</p>
-                      <p className="text-sm text-foreground mt-2">{currentStep.expectedOutput}</p>
-                    </div>
-                    <div className="rounded-xl border border-border bg-secondary/25 p-4">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Run focus</p>
-                      <p className="text-sm text-foreground mt-2">
-                        Complete this step before jumping back into the broader workflow list.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-border bg-secondary/15 p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground mb-3">Step navigator</p>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedWorkflow.steps.map((step, index) => (
-                        <button
-                          key={step.id}
-                          onClick={() => onJumpToWorkflowStep(index)}
-                          className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
-                            index === currentStepIndex
-                              ? "border-primary/30 bg-primary/10 text-primary"
-                              : "border-border bg-secondary/20 text-muted-foreground hover:text-foreground"
-                          }`}
-                        >
-                          {index + 1}. {step.title}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    <div className="rounded-xl border border-border bg-secondary/25 p-4">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Tools for this step</p>
-                      {currentStepTools.length > 0 ? (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {currentStepTools.map((tool) => (
-                            <Badge key={tool.id} variant="outline" className="border-border text-foreground">
-                              {tool.name}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground mt-2">No tools linked.</p>
-                      )}
-                    </div>
-                    <div className="rounded-xl border border-border bg-secondary/25 p-4">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Expected output</p>
-                      <p className="text-sm text-foreground mt-2">{currentStep.expectedOutput}</p>
-                    </div>
-                    <div className="rounded-xl border border-border bg-secondary/25 p-4">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Launch</p>
-                      {currentStep.launchUrl ? (
-                        <Button variant="outline" asChild className="mt-3">
-                          <a href={currentStep.launchUrl} target="_blank" rel="noopener noreferrer">
-                            Launch current tool
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                        </Button>
-                      ) : (
-                        <p className="text-sm text-muted-foreground mt-2">No direct launch link.</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground mb-3">
-                      Prompts for this step
-                    </p>
-                    {currentStepPrompts.length > 0 ? (
-                      <div className="space-y-3">
-                        {currentStepPrompts.map((prompt) => (
-                          <div
-                            key={prompt.id}
-                            className="rounded-xl border border-border bg-secondary/20 p-4"
-                          >
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                              <div>
-                                <p className="font-medium text-foreground">{prompt.title}</p>
-                                <p className="text-sm text-muted-foreground mt-1">{prompt.category}</p>
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                <Button
-                                  variant="outline"
-                                  onClick={() => copyPrompt(prompt.id, prompt.content)}
-                                >
-                                  {copiedPromptId === prompt.id ? (
-                                    <>
-                                      <Check className="w-4 h-4 text-green-400" />
-                                      Copied
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Copy className="w-4 h-4" />
-                                      Copy prompt
-                                    </>
-                                  )}
-                                </Button>
-                                {TOOLS.find((tool) => tool.id === prompt.linkedToolId) ? (
-                                  <Button variant="outline" asChild>
-                                    <a
-                                      href={TOOLS.find((tool) => tool.id === prompt.linkedToolId)?.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                    >
-                                      Launch linked tool
-                                      <ExternalLink className="w-4 h-4" />
-                                    </a>
-                                  </Button>
-                                ) : null}
-                              </div>
-                            </div>
-                            <p className="text-sm text-muted-foreground mt-3 whitespace-pre-wrap">
-                              {prompt.content}
-                            </p>
+            {workflowSessions.length > 0 ? (
+              <Card className="surface-panel rounded-3xl">
+                <CardContent className="p-5">
+                  <SectionHeader
+                    icon={PlayCircle}
+                    title="Workflow sessions"
+                    description="Use one active session for the current deep-work block. Older sessions stay resumable."
+                  />
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    {workflowSessions.map((session) => (
+                      <div key={session.id} className="surface-subtle rounded-2xl p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{new Date(session.startedAt).toLocaleString()}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">Updated {new Date(session.updatedAt).toLocaleString()}</p>
                           </div>
-                        ))}
+                          <StatusBadge status={session.status} />
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button variant="outline" size="sm" onClick={() => onSetActiveSession(session.id)}>
+                            Focus session
+                          </Button>
+                          {session.status !== "completed" ? (
+                            <Button size="sm" onClick={() => onResumeWorkflowSession(session.id, session.resumeNote ?? "")}>
+                              Resume
+                            </Button>
+                          ) : null}
+                        </div>
                       </div>
-                    ) : (
-                      <div className="rounded-xl border border-dashed border-border px-4 py-4 text-sm text-muted-foreground">
-                        No prompts linked for this step.
-                      </div>
-                    )}
+                    ))}
                   </div>
                 </CardContent>
               </Card>
             ) : null}
 
-            <div className="space-y-4">
-              {selectedWorkflow.steps.map((step, index) => {
-                const stepTools = TOOLS.filter((tool) => step.toolIds.includes(tool.id))
-                const stepPrompts = PROMPTS.filter((prompt) => step.promptIds.includes(prompt.id))
-                const isFocusedStep = isActiveRunMode && currentStep?.id === step.id
-
-                return (
-                  <Card
-                    key={step.id}
-                    className={
-                      isFocusedStep
-                        ? "border-primary/30 bg-primary/5"
-                        : "border-border bg-card/70"
-                    }
-                  >
-                    <CardHeader className="gap-3">
-                      <div className="flex items-start gap-4">
-                        <div
-                          className={
-                            isFocusedStep
-                              ? "flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground"
-                              : "flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary"
-                          }
+            <div className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
+              <Card className="surface-panel rounded-3xl">
+                <CardContent className="p-5">
+                  <SectionHeader
+                    icon={ListChecks}
+                    title="Step list"
+                    description="Completed steps turn green, the current step stays highlighted, blocked steps surface risk, and future steps stay quiet."
+                  />
+                  {selectedWorkflowSession ? <Progress value={progress} className="mt-4" /> : null}
+                  <div className="mt-4 space-y-3">
+                    {selectedWorkflow.steps.map((step, index) => {
+                      const stepExecution = selectedWorkflowSession?.stepExecutions.find((item) => item.stepId === step.id)
+                      const stepStatus = stepExecution?.status ?? (index === 0 ? "not-started" : "not-started")
+                      const isCurrent = selectedStep?.id === step.id
+                      const Icon = getStatusMeta(stepStatus).icon
+                      return (
+                        <button
+                          key={step.id}
+                          onClick={() => {
+                            if (selectedWorkflowSession) {
+                              onJumpToWorkflowStep(step.id)
+                              return
+                            }
+                            setPreviewStepId(step.id)
+                          }}
+                          className={cn(
+                            "flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition-colors",
+                            isCurrent
+                              ? "border-primary/25 bg-primary/10"
+                              : stepStatus === "completed"
+                                ? "border-success/20 bg-success/8"
+                                : stepStatus === "blocked"
+                                  ? "border-destructive/20 bg-destructive/8"
+                                  : "border-border bg-secondary/20 hover:border-primary/15 hover:bg-secondary/30"
+                          )}
                         >
-                          {index + 1}
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <CardTitle>{step.title}</CardTitle>
-                            {isFocusedStep ? (
-                              <Badge variant="secondary" className="bg-primary/10 text-primary border border-primary/20">
-                                Current Step
-                              </Badge>
-                            ) : null}
+                          <div className={cn(
+                            "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                            stepStatus === "completed"
+                              ? "bg-success/12 text-success"
+                              : stepStatus === "blocked"
+                                ? "bg-destructive/12 text-destructive"
+                                : isCurrent
+                                  ? "bg-primary/12 text-primary"
+                                  : "bg-secondary/40 text-muted-foreground"
+                          )}>
+                            <Icon className="h-4 w-4" />
                           </div>
-                          <CardDescription>{step.description}</CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-5">
-                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                        <div className="rounded-xl border border-border bg-secondary/25 p-4">
-                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Tools used</p>
-                          {stepTools.length > 0 ? (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {stepTools.map((tool) => (
-                                <Badge key={tool.id} variant="outline" className="border-border text-foreground">
-                                  {tool.name}
-                                </Badge>
-                              ))}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-xs font-semibold text-muted-foreground">Step {index + 1}</span>
+                              <StatusBadge status={stepStatus} />
                             </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground mt-2">No tools linked.</p>
-                          )}
+                            <p className="mt-2 text-sm font-semibold text-foreground">{step.title}</p>
+                            <p className="mt-1 text-sm text-muted-foreground">{step.expectedOutput}</p>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="space-y-4">
+                {selectedStep ? (
+                  <Card className="surface-panel rounded-3xl">
+                    <CardContent className="p-5">
+                      <SectionHeader
+                        icon={selectedWorkflowSession?.status === "blocked" ? AlertTriangle : PlayCircle}
+                        title={selectedStep.title}
+                        description={selectedStep.description}
+                        action={selectedWorkflowSession ? <StatusBadge status={selectedWorkflowSession.status} /> : <StatusBadge status="not-started" />}
+                      />
+
+                      <div className="mt-5 grid gap-3 md:grid-cols-2">
+                        <div className="rounded-2xl border border-primary/20 bg-primary/8 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-primary/85">Expected output</p>
+                          <p className="mt-2 text-sm text-foreground">{selectedStep.expectedOutput}</p>
                         </div>
-                        <div className="rounded-xl border border-border bg-secondary/25 p-4">
-                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Expected output</p>
-                          <p className="text-sm text-foreground mt-2">{step.expectedOutput}</p>
-                        </div>
-                        <div className="rounded-xl border border-border bg-secondary/25 p-4">
-                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Launch</p>
-                          {step.launchUrl ? (
-                            <Button variant="outline" asChild className="mt-3">
-                              <a href={step.launchUrl} target="_blank" rel="noopener noreferrer">
-                                Launch tool
-                                <ExternalLink className="w-4 h-4" />
-                              </a>
-                            </Button>
-                          ) : (
-                            <p className="text-sm text-muted-foreground mt-2">No direct launch link.</p>
-                          )}
+                        <div className="surface-subtle rounded-2xl p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Current step state</p>
+                          <p className="mt-2 text-sm font-medium text-foreground">{currentStepExecution?.status ?? "Preview only"}</p>
                         </div>
                       </div>
 
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground mb-3">
-                          Linked prompts
-                        </p>
-                        {stepPrompts.length > 0 ? (
-                          <div className="space-y-3">
-                            {stepPrompts.map((prompt) => (
-                              <div
-                                key={prompt.id}
-                                className="rounded-xl border border-border bg-secondary/20 p-4"
+                      <div className="mt-4 grid gap-3 md:grid-cols-3">
+                        <div className="surface-subtle rounded-2xl p-4">
+                          <div className="flex items-center gap-2">
+                            <Bot className="h-4 w-4 text-primary" />
+                            <p className="text-sm font-semibold text-foreground">Recommended tools</p>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {stepTools.map((tool) => (
+                              <a
+                                key={tool.id}
+                                href={tool.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="rounded-full border border-border bg-secondary/30 px-3 py-1.5 text-xs text-foreground transition hover:border-primary/20 hover:text-primary"
                               >
-                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                {tool.name}
+                              </a>
+                            ))}
+                            {stepTools.length === 0 ? <span className="text-sm text-muted-foreground">No tools linked.</span> : null}
+                          </div>
+                        </div>
+
+                        <div className="surface-subtle rounded-2xl p-4">
+                          <div className="flex items-center gap-2">
+                            <MessageSquare className="h-4 w-4 text-primary" />
+                            <p className="text-sm font-semibold text-foreground">Relevant prompts</p>
+                          </div>
+                          <p className="mt-3 text-sm text-muted-foreground">
+                            {stepPrompts.length > 0 ? `${stepPrompts.length} prompt${stepPrompts.length > 1 ? "s" : ""} attached to this step.` : "No step prompts linked."}
+                          </p>
+                        </div>
+
+                        <div className="surface-subtle rounded-2xl p-4">
+                          <div className="flex items-center gap-2">
+                            <Database className="h-4 w-4 text-primary" />
+                            <p className="text-sm font-semibold text-foreground">Relevant context</p>
+                          </div>
+                          <p className="mt-3 text-sm text-muted-foreground">
+                            {stepContexts.length > 0 ? `${stepContexts.length} context record${stepContexts.length > 1 ? "s" : ""} available.` : "No context records linked yet."}
+                          </p>
+                        </div>
+                      </div>
+
+                      {selectedWorkflowSession ? (
+                        <div className="mt-5 space-y-4">
+                          <div className="rounded-2xl border border-border bg-secondary/15 p-4">
+                            <p className="text-sm font-semibold text-foreground">Primary action</p>
+                            <p className="mt-1 text-sm text-muted-foreground">Create the expected output, then mark the step complete.</p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <Button onClick={saveOutput} disabled={outputTitle.trim() === "" || outputContent.trim() === ""}>
+                                Save output
+                              </Button>
+                              <Button variant="outline" onClick={onCompleteCurrentStep}>
+                                <CheckCircle2 className="h-4 w-4" />
+                                Mark step complete
+                              </Button>
+                              {selectedStep.launchUrl ? (
+                                <Button variant="outline" asChild>
+                                  <a href={selectedStep.launchUrl} target="_blank" rel="noopener noreferrer">
+                                    Launch tool
+                                    <ExternalLink className="h-4 w-4" />
+                                  </a>
+                                </Button>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <div className="grid gap-4 xl:grid-cols-[1fr_0.95fr]">
+                            <div className="space-y-4">
+                              <div className="rounded-2xl border border-border bg-secondary/15 p-4">
+                                <p className="text-sm font-semibold text-foreground">Output editor</p>
+                                <p className="mt-1 text-sm text-muted-foreground">Answer the expected output directly here so the review layer has something concrete.</p>
+                                <div className="mt-3 grid gap-2">
+                                  <Input value={outputTitle} onChange={(event) => setOutputTitle(event.target.value)} placeholder="Output title" />
+                                  <Textarea value={outputContent} onChange={(event) => setOutputContent(event.target.value)} placeholder="What did this step produce?" className="min-h-28" />
+                                </div>
+                              </div>
+
+                              <div className="rounded-2xl border border-border bg-secondary/15 p-4">
+                                <div className="flex items-center justify-between gap-3">
                                   <div>
-                                    <p className="font-medium text-foreground">{prompt.title}</p>
-                                    <p className="text-sm text-muted-foreground mt-1">{prompt.category}</p>
+                                    <p className="text-sm font-semibold text-foreground">Prompts</p>
+                                    <p className="mt-1 text-sm text-muted-foreground">Use the attached prompt first before browsing the broader library.</p>
                                   </div>
-                                  <Button
-                                    variant="outline"
-                                    onClick={() => copyPrompt(prompt.id, prompt.content)}
-                                  >
-                                    {copiedPromptId === prompt.id ? (
-                                      <>
-                                        <Check className="w-4 h-4 text-green-400" />
-                                        Copied
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Copy className="w-4 h-4" />
-                                        Copy prompt
-                                      </>
-                                    )}
+                                  <Button variant="outline" size="sm" onClick={() => copyText(executionPack, "pack")}>
+                                    <Copy className="h-4 w-4" />
+                                    {copiedPack ? "Copied pack" : "Copy execution pack"}
                                   </Button>
                                 </div>
-                                <p className="text-sm text-muted-foreground mt-3 line-clamp-5">
-                                  {prompt.content}
-                                </p>
+                                <div className="mt-3 space-y-3">
+                                  {stepPrompts.map((prompt) => (
+                                    <div key={prompt.id} className="surface-subtle rounded-2xl p-4">
+                                      <div className="flex flex-wrap items-start justify-between gap-2">
+                                        <div>
+                                          <p className="text-sm font-semibold text-foreground">{prompt.title}</p>
+                                          <p className="mt-1 text-xs text-muted-foreground">{prompt.purpose} • v{prompt.version}</p>
+                                        </div>
+                                        <Button variant="outline" size="sm" onClick={() => copyText(prompt.content, "prompt", prompt.id)}>
+                                          {copiedPromptId === prompt.id ? "Copied" : "Copy prompt"}
+                                        </Button>
+                                      </div>
+                                      <p className="mt-2 text-xs text-muted-foreground">Expected output: {prompt.expectedOutput}</p>
+                                      <p className="mt-3 line-clamp-4 text-sm text-foreground">{prompt.content}</p>
+                                    </div>
+                                  ))}
+                                  {stepPrompts.length === 0 ? (
+                                    <EmptyState icon={MessageSquare} title="No prompts linked" description="This step currently relies on tools and context rather than a saved prompt." />
+                                  ) : null}
+                                </div>
                               </div>
-                            ))}
+                            </div>
+
+                            <div className="space-y-4">
+                              <div className="rounded-2xl border border-border bg-secondary/15 p-4">
+                                <p className="text-sm font-semibold text-foreground">Relevant context</p>
+                                <div className="mt-3 space-y-3">
+                                  {stepContexts.map((context) => {
+                                    const Icon = getContextIcon(context.type)
+                                    return (
+                                      <div key={context.id} className="surface-subtle rounded-2xl p-4">
+                                        <div className="flex items-start gap-3">
+                                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-knowledge/10 text-knowledge">
+                                            <Icon className="h-4 w-4" />
+                                          </div>
+                                          <div>
+                                            <p className="text-sm font-semibold text-foreground">{context.title}</p>
+                                            <p className="mt-2 text-sm text-muted-foreground">{context.content}</p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                  {stepContexts.length === 0 ? (
+                                    <EmptyState icon={Database} title="No context linked" description="Add a reusable context record if this step needs background information repeatedly." />
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              <div className="rounded-2xl border border-border bg-secondary/15 p-4">
+                                <p className="text-sm font-semibold text-foreground">Session controls</p>
+                                <p className="mt-1 text-sm text-muted-foreground">Use pause and block intentionally so the session stays understandable later.</p>
+                                <div className="mt-3 space-y-4">
+                                  <div>
+                                    <Textarea value={resumeDraft} onChange={(event) => setResumeDraft(event.target.value)} placeholder="Resume note: what should I remember next time?" className="min-h-20" />
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      <Button variant="outline" size="sm" onClick={() => onResumeSession(resumeDraft.trim())}>
+                                        Save resume note
+                                      </Button>
+                                      <Button variant="outline" size="sm" onClick={() => onPauseSession(resumeDraft.trim())}>
+                                        <PauseCircle className="h-4 w-4" />
+                                        Pause session
+                                      </Button>
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <Textarea value={blockerDraft} onChange={(event) => setBlockerDraft(event.target.value)} placeholder="Blocker note: what is preventing progress?" className="min-h-20" />
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      <Button variant="outline" size="sm" onClick={() => onBlockSession(blockerDraft.trim())}>
+                                        <Flag className="h-4 w-4" />
+                                        Block session
+                                      </Button>
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <Textarea value={summaryDraft} onChange={(event) => setSummaryDraft(event.target.value)} placeholder="Session summary: what shipped, what remains, what happens next?" className="min-h-24" />
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      <Button variant="outline" size="sm" onClick={() => onSaveSessionSummary(summaryDraft.trim())}>
+                                        Save summary
+                                      </Button>
+                                      <Button size="sm" onClick={() => onFinishSession(summaryDraft.trim())}>
+                                        Finish session
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        ) : (
-                          <div className="rounded-xl border border-dashed border-border px-4 py-4 text-sm text-muted-foreground">
-                            No prompts linked for this step.
-                          </div>
-                        )}
-                      </div>
+                        </div>
+                      ) : (
+                        <div className="mt-5">
+                          <InfoCallout
+                            variant="info"
+                            title="Preview mode"
+                            description="Start a session to enable output logging, step completion, blockers, pause/resume, and finish-state behavior."
+                          />
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
-                )
-              })}
+                ) : (
+                  <EmptyState icon={ListChecks} title="No step selected" description="Choose a step from the list or start a session to enter guided execution mode." />
+                )}
+              </div>
             </div>
+
+            {selectedWorkflowSession?.status === "blocked" ? (
+              <InfoCallout
+                variant="danger"
+                title="Blocked session"
+                description={selectedWorkflowSession.blockerNote || "This session is blocked. Add a blocker note or move it into pause state intentionally."}
+              />
+            ) : null}
           </div>
-        ) : (
-          <div className="rounded-xl border border-dashed border-border p-8 text-sm text-muted-foreground">
-            No workflow selected.
-          </div>
-        )}
+        </div>
       </div>
     </div>
   )

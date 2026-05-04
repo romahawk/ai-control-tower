@@ -1,7 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { INCOME_ENGINES } from "@/data/income-engines"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Sidebar from "@/components/sidebar"
 import TopBar from "@/components/top-bar"
 import CommandPalette from "@/components/command-palette"
@@ -11,9 +10,12 @@ import { ExecutionPanel } from "@/components/views/execution-panel"
 import { ContextManager } from "@/components/views/context-manager"
 import { ToolLauncher } from "@/components/views/tool-launcher"
 import { WorkflowLibrary } from "@/components/views/workflow-library"
+import { ReviewsView } from "@/components/views/reviews"
 import { Settings } from "@/components/views/settings"
+import { WikiView } from "@/components/views/wiki"
+import { useControlTowerState } from "@/hooks/use-control-tower-state"
+import { buildExecutionPack, getCurrentStepIndex } from "@/lib/control-tower"
 import type { ViewType } from "@/types/navigation"
-import type { ActiveWorkflowSession } from "@/types"
 
 interface AppShellProps {
   currentView: ViewType
@@ -22,19 +24,52 @@ interface AppShellProps {
 
 export default function AppShell({ currentView, onNavigate }: AppShellProps) {
   const [commandOpen, setCommandOpen] = useState(false)
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState(
-    INCOME_ENGINES.find((engine) => engine.priority === "Primary")?.activeWorkflowId ??
-      INCOME_ENGINES[0]?.activeWorkflowId ??
-      ""
-  )
-  const [activeWorkflowSession, setActiveWorkflowSession] = useState<ActiveWorkflowSession | null>(null)
+  const {
+    state,
+    selectedScenario,
+    selectedWorkflow,
+    activeWorkflow,
+    activeSession,
+    currentStep,
+    scenarioWorkflows,
+    scenarioPrompts,
+    scenarioTools,
+    stepPrompts,
+    stepTools,
+    stepContexts,
+    activeSessions,
+    recentOutputs,
+    nextActions,
+    reviews,
+    selectScenario,
+    selectWorkflow,
+    startWorkflowSession,
+    setActiveSession,
+    resumeWorkflowSession,
+    moveActiveStep,
+    jumpToStep,
+    completeCurrentStep,
+    saveOutput,
+    saveBlocker,
+    saveResume,
+    pauseActiveSession,
+    finishActiveSession,
+    saveSessionSummary,
+    createContextRecord,
+    createReview,
+    downloadExport,
+    importWorkspace,
+    resetWorkspace,
+    loadDemoWorkspace,
+    getCompletedStepsCount,
+  } = useControlTowerState()
 
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-      e.preventDefault()
-      setCommandOpen((prev) => !prev)
+  const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault()
+      setCommandOpen((current) => !current)
     }
-    if (e.key === "Escape") {
+    if (event.key === "Escape") {
       setCommandOpen(false)
     }
   }, [])
@@ -45,106 +80,136 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
   }, [handleKeyDown])
 
   const openWorkflow = (workflowId: string) => {
-    setSelectedWorkflowId(workflowId)
+    selectWorkflow(workflowId)
     onNavigate("workflows")
   }
 
-  const startWorkflowSession = (workflowId: string) => {
-    setSelectedWorkflowId(workflowId)
-    setActiveWorkflowSession({
-      workflowId,
-      currentStepIndex: 0,
-      startedAt: new Date().toISOString(),
-    })
-    onNavigate("workflows")
-  }
+  const workflowSessions = useMemo(
+    () => state.sessions.filter((session) => session.workflowId === selectedWorkflow.id),
+    [selectedWorkflow.id, state.sessions]
+  )
 
-  const endWorkflowSession = () => {
-    setActiveWorkflowSession(null)
-  }
-
-  const moveWorkflowStep = (direction: 1 | -1) => {
-    setActiveWorkflowSession((currentSession) => {
-      if (!currentSession) return currentSession
-      return {
-        ...currentSession,
-        currentStepIndex: Math.max(0, currentSession.currentStepIndex + direction),
-      }
-    })
-  }
-
-  const jumpToWorkflowStep = (stepIndex: number) => {
-    setActiveWorkflowSession((currentSession) => {
-      if (!currentSession) return currentSession
-      return {
-        ...currentSession,
-        currentStepIndex: Math.max(0, stepIndex),
-      }
-    })
-  }
+  const executionPack =
+    activeWorkflow && currentStep ? buildExecutionPack(activeWorkflow, currentStep, state) : ""
+  const currentStepIndex =
+    activeSession && activeWorkflow ? getCurrentStepIndex(activeSession, activeWorkflow) : 0
 
   const renderView = () => {
     switch (currentView) {
       case "dashboard":
         return (
           <Dashboard
+            selectedScenario={selectedScenario}
+            activeSessions={activeSessions}
+            recentOutputs={recentOutputs}
+            recentReviews={reviews}
+            nextActions={nextActions}
             onNavigate={onNavigate}
-            onOpenCommand={() => setCommandOpen(true)}
             onOpenWorkflow={openWorkflow}
             onStartWorkflowSession={startWorkflowSession}
-            activeWorkflowSession={activeWorkflowSession}
+            onSelectScenario={selectScenario}
           />
         )
       case "prompts":
-        return <PromptLibrary onOpenWorkflow={openWorkflow} />
+        return (
+          <PromptLibrary
+            selectedScenario={selectedScenario}
+            prompts={scenarioPrompts}
+            tools={scenarioTools}
+            onOpenWorkflow={openWorkflow}
+          />
+        )
       case "execution":
         return <ExecutionPanel />
       case "contexts":
-        return <ContextManager />
+        return (
+          <ContextManager
+            selectedScenario={selectedScenario}
+            selectedWorkflow={selectedWorkflow}
+            contexts={state.contexts}
+            onSaveContext={createContextRecord}
+          />
+        )
       case "tools":
-        return <ToolLauncher onOpenWorkflow={openWorkflow} />
+        return (
+          <ToolLauncher
+            selectedScenario={selectedScenario}
+            tools={scenarioTools}
+            onOpenWorkflow={openWorkflow}
+          />
+        )
       case "workflows":
         return (
           <WorkflowLibrary
-            selectedWorkflowId={selectedWorkflowId}
-            onSelectWorkflow={setSelectedWorkflowId}
-            activeWorkflowSession={activeWorkflowSession}
+            selectedScenario={selectedScenario}
+            workflows={scenarioWorkflows}
+            selectedWorkflow={selectedWorkflow}
+            activeSession={activeSession}
+            workflowSessions={workflowSessions}
+            currentStepIndex={currentStepIndex}
+            stepPrompts={stepPrompts}
+            stepTools={stepTools}
+            stepContexts={stepContexts}
+            executionPack={executionPack}
+            onSelectWorkflow={selectWorkflow}
             onStartWorkflowSession={startWorkflowSession}
-            onEndWorkflowSession={endWorkflowSession}
-            onMoveWorkflowStep={moveWorkflowStep}
-            onJumpToWorkflowStep={jumpToWorkflowStep}
+            onSetActiveSession={setActiveSession}
+            onResumeWorkflowSession={resumeWorkflowSession}
+            onMoveWorkflowStep={moveActiveStep}
+            onJumpToWorkflowStep={jumpToStep}
+            onCompleteCurrentStep={completeCurrentStep}
+            onSaveWorkflowOutput={saveOutput}
+            onBlockSession={saveBlocker}
+            onPauseSession={pauseActiveSession}
+            onResumeSession={saveResume}
+            onFinishSession={finishActiveSession}
+            onSaveSessionSummary={saveSessionSummary}
+            getCompletedStepsCount={getCompletedStepsCount}
+          />
+        )
+      case "reviews":
+        return (
+          <ReviewsView
+            selectedScenario={selectedScenario}
+            activeSessions={activeSessions}
+            recentOutputs={recentOutputs}
+            reviews={reviews}
+            nextActions={nextActions}
+            onCreateReview={(type) => createReview(type, { scenarioId: selectedScenario.id })}
+            onOpenWorkflow={openWorkflow}
           />
         )
       case "settings":
-        return <Settings />
-      default:
         return (
-          <Dashboard
-            onNavigate={onNavigate}
-            onOpenCommand={() => setCommandOpen(true)}
-            onOpenWorkflow={openWorkflow}
-            onStartWorkflowSession={startWorkflowSession}
-            activeWorkflowSession={activeWorkflowSession}
+          <Settings
+            onExport={downloadExport}
+            onImport={importWorkspace}
+            onReset={resetWorkspace}
+            onLoadDemo={loadDemoWorkspace}
           />
         )
+      case "wiki":
+        return <WikiView onNavigate={onNavigate} />
+      default:
+        return null
     }
   }
 
   return (
-    <div className="flex h-screen bg-background text-foreground overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-background text-foreground">
       <Sidebar
         currentView={currentView}
         onNavigate={onNavigate}
         onOpenCommand={() => setCommandOpen(true)}
       />
-      <div className="flex flex-col flex-1 min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col">
         <TopBar
           onOpenCommand={() => setCommandOpen(true)}
           currentView={currentView}
         />
-        <main className="flex-1 overflow-auto scrollbar-thin">{renderView()}</main>
+        <main className="flex-1 overflow-auto">{renderView()}</main>
       </div>
-      {commandOpen && (
+      {commandOpen ? (
         <CommandPalette
           onClose={() => setCommandOpen(false)}
           onNavigate={(view) => {
@@ -152,7 +217,7 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             setCommandOpen(false)
           }}
         />
-      )}
+      ) : null}
     </div>
   )
 }
