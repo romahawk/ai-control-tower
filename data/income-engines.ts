@@ -1,52 +1,17 @@
+import { SCENARIOS } from "@/data/scenarios"
 import type { IncomeEngine } from "@/types"
 
-export const INCOME_ENGINES: IncomeEngine[] = [
-  {
-    id: "web-agency",
-    name: "Web Agency",
-    priority: "Primary",
-    description: "Generate qualified client opportunities and convert them into outreach and revenue.",
-    status: "Active",
-    activeWorkflowId: "agency-lead-generation",
-    nextAction: "Generate 30 Hamburg SME leads and draft 5 outreach hooks.",
-    targetOutput: "30 leads + 5 outreach messages/week",
-    linkedWorkflowIds: ["agency-lead-generation", "product-case-study-extraction"],
-  },
-  {
-    id: "job-search",
-    name: "Job Search",
-    priority: "Secondary",
-    description: "Run a focused search for roles with strong fit and real upside.",
-    status: "Active",
-    activeWorkflowId: "high-fit-job-discovery",
-    nextAction: "Shortlist 5 high-fit roles with application angles.",
-    targetOutput: "5 strong-fit roles/week",
-    linkedWorkflowIds: ["high-fit-job-discovery"],
-  },
-  {
-    id: "product-building",
-    name: "Product Building",
-    priority: "Support",
-    description: "Turn shipped work into proof, learning, and reusable execution assets.",
-    status: "Active",
-    activeWorkflowId: "product-case-study-extraction",
-    nextAction: "Turn the latest shipped project into one strong case study draft.",
-    targetOutput: "1 publishable proof asset/week",
-    linkedWorkflowIds: [
-      "product-case-study-extraction",
-      "weekly-income-engine-review",
-      "learning-sprint-compression",
-    ],
-  },
-  {
-    id: "trading-systems",
-    name: "Trading Systems",
-    priority: "Maintenance",
-    description: "Use review discipline to improve process quality and reduce impulsive iteration.",
-    status: "Monitoring",
-    activeWorkflowId: "trading-review",
-    nextAction: "Review the latest trade and extract one rule-level lesson.",
-    targetOutput: "100% of meaningful trades reviewed",
-    linkedWorkflowIds: ["trading-review"],
-  },
-]
+// TODO: Remove this adapter once all legacy income-engine references are fully retired.
+export const INCOME_ENGINES: IncomeEngine[] = SCENARIOS.filter(
+  (scenario) => scenario.category === "income-engine"
+).map((scenario) => ({
+  id: scenario.id,
+  name: scenario.name,
+  priority: scenario.priority ? scenario.priority[0].toUpperCase() + scenario.priority.slice(1) : "Medium",
+  description: scenario.description,
+  status: scenario.status[0].toUpperCase() + scenario.status.slice(1),
+  activeWorkflowId: scenario.defaultWorkflowIds?.[0] ?? "",
+  nextAction: scenario.nextAction ?? "",
+  targetOutput: scenario.targetOutput ?? "",
+  linkedWorkflowIds: scenario.defaultWorkflowIds ?? [],
+}))

@@ -1,130 +1,167 @@
 # AI Control Tower PRD
 
-## Product Overview
-AI Control Tower is a universal workflow execution system that organizes AI and tool usage into structured, repeatable workflows across multiple life domains.
+## Product Summary
 
-The product helps a user move from scattered tabs, prompts, and partial systems into one clear path:
+AI Control Tower is a local-first Personal Execution OS that helps a user organize AI tools, prompts, workflows, and context into one repeatable operating system across multiple scenarios.
 
-`Scenario -> Workflow -> Step -> Tool/Prompt/Context -> Execution -> Output -> Review`
+The universal model is:
+
+`Scenario -> Workflow -> Step -> Tool / Prompt / Context -> Execution -> Output -> Review`
 
 ## Core Problem
-- AI usage is fragmented across too many tools, prompts, notes, and browser tabs.
-- Users lose time deciding what to do next instead of executing the next useful step.
-- Most AI workflows do not compound because outputs, context, and review loops are not structured.
-- Existing systems are often narrow: prompt collections, tool launchers, or agent demos without a reliable execution layer.
 
-## Target User
-- Solo operators and small teams using AI daily
-- People who need execution systems, not just reference libraries
-- Users operating across multiple life domains, not only income work
+- AI usage is fragmented across too many tools, prompts, tabs, and notes.
+- Users spend too much energy deciding what to do next.
+- Prompt libraries alone do not create compounding value.
+- Workflow systems without outputs and reviews stay shallow.
+- Income-focused execution is important, but it is only one scenario among several.
 
-Primary scenario categories:
+## Product Positioning
+
+AI Control Tower is not:
+- just a prompt library
+- just a tool launcher
+- just a workflow browser
+- just an automation shell
+
+AI Control Tower is:
+- a structured execution layer
+- a scenario-first operating model
+- a way to reduce cognitive overload
+- a system that turns AI usage into outputs and review signals
+
+## Users
+
+Primary:
+- solo founders
+- solo operators using AI daily
+- technical product builders
+- people managing multiple active projects and domains
+
+Secondary:
+- small AI-native teams later
+
+## Top-Level Product Model
+
+### Scenario
+The major operating context.
+
+Examples:
 - Income Engine
+- Product Development
 - Life Strategy
-- Family & Home
 - Admin Tasks
+- Family & Home
 - Sport & Health
+- Learning
 - Custom
 
-## Core Solution
-- Use `Scenario` as the top-level operating lens instead of a single income-only model.
-- Organize work into reusable workflows with ordered steps.
-- Keep the current step, prompt, tool, and expected output visible during execution.
-- Capture outputs and review signals so AI/tool usage compounds over time.
-- Reduce cognitive overload by always surfacing one current scenario, one current workflow, and one next action.
+### Workflow
+A repeatable path to an outcome inside a scenario.
 
-## Positioning
-AI Control Tower is a universal AI workflow control system.
+### Step
+The smallest guided execution unit.
 
-It is not only a prompt library, not only a tool launcher, and not only an automation shell.
+### Tool / Prompt / Context
+The inputs required for execution.
 
-It is the operating layer for structured AI-assisted execution across work and life domains.
+### Execution
+The active running of a workflow session.
 
-## Core Entities
-- `Scenario`: top-level operating context such as Income Engine, Admin Tasks, or Sport & Health
-- `Workflow`: repeatable path to an outcome inside a scenario
-- `Step`: smallest execution unit inside a workflow
-- `Tool`: external app or environment used in a step
-- `Prompt`: reusable instruction asset linked to a step or workflow
-- `Context`: note, link, file, or document attached to a workflow or step
-- `Session`: active run state for a workflow execution
-- `Output`: artifact produced by a step or workflow
-- `Review`: summary layer that turns outputs and execution signals into the next decision
+### Output
+The artifact or decision created during execution.
 
-## Current Implemented Scope
-Current app state already covers:
-- Static scenario-like seed data
-- Dashboard / control tower
-- Workflow library
-- Prompt library
-- Tool registry
-- Active workflow run mode
-- External launch links
-- Copy-to-clipboard prompts
-- Lightweight context placeholder screen
+### Review
+The deterministic reflection layer that turns outputs into the next actions.
 
-## MVP Scope
-MVP is now defined as a static but usable scenario-based control system.
+## Product Thesis
+
+The system creates value when it moves the user from:
+
+`tool overload -> workflow clarity -> visible output -> better next decision`
+
+Without execution and review, the product becomes a reference library.
+
+With execution and review, it becomes a compounding operating system.
+
+## Current Scope In Repo
+
+Implemented:
+- Scenario-first dashboard
+- workflow library
+- prompt library
+- tool registry
+- context manager
+- workflow sessions
+- step completion
+- output logging
+- pause, blocker, resume, and finish state
+- review layer with deterministic recommendations
+- local persistence
+- import/export/reset/demo workspace controls
+
+## MVP Strategy
+
+The MVP is intentionally local-first.
 
 Included:
-- Scenario dashboard
-- Workflow library
-- Active workflow session / run mode
-- Tool registry
-- Prompt library
-- Context placeholder layer
-- External tool launch links
-- Copy-to-clipboard prompts
+- seeded scenario and workflow templates
+- local user state
+- no backend dependency
+- no auth dependency
+- no AI API requirement
 
-Still needed for a complete MVP execution layer:
-- Step completion state
-- Output logging
-- Session summary
-- Review view
+Why:
+- validate the execution loop before building product infrastructure
+- keep changes testable and reversible
+- separate seed templates from user data early
 
 ## Non-Goals
-- No backend yet
-- No auth yet
-- No database yet
-- No autonomous agent orchestration
-- No full automation engine
-- No complex collaboration model
 
-## Core User Flows
-### 1. Start From Scenario
-1. User opens the dashboard.
-2. User sees the active scenario and next action.
-3. User opens the linked workflow.
-4. User starts or resumes a workflow session.
+- multi-user collaboration
+- SaaS backend
+- auth and billing
+- agent orchestration inside the product
+- prompt version history systems beyond a simple version field
+- complex state-management infrastructure unless justified later
 
-### 2. Execute One Step
-1. User enters active workflow run mode.
-2. User sees the current step, prompt, tool, and expected output.
-3. User copies the prompt or launches the tool.
-4. User completes the step and moves forward.
+## Product Flows
 
-### 3. Reuse Across Domains
-1. User switches from one scenario to another.
-2. User selects a workflow for that scenario.
-3. User executes with the same structured flow regardless of domain.
+### 1. Scenario To Session
+1. User selects a scenario.
+2. User opens a workflow.
+3. User starts a workflow session.
+4. User executes step by step.
 
-### 4. Turn Execution Into Outputs
-1. User runs a workflow.
-2. User produces an output.
-3. User reviews what was produced and what to do next.
+### 2. Execution To Output
+1. User sees the current step.
+2. User sees relevant prompts, tools, context, and expected output.
+3. User logs the output.
+4. User marks the step complete.
+
+### 3. Interruption Handling
+1. User pauses or blocks a session.
+2. User stores blocker or resume notes.
+3. User resumes without reloading mental context from scratch.
+
+### 4. Output To Review
+1. Outputs accumulate across sessions.
+2. User creates a daily, weekly, or scenario review.
+3. The system suggests deterministic next actions.
 
 ## Success Metrics
-- Time-to-next-action after opening the app
-- Workflow session starts per active scenario
-- Prompt copy and tool launch rate inside workflow sessions
-- Number of outputs captured per scenario per week
-- Number of workflows completed across more than one scenario category
-- Share of sessions that end in a usable output or review signal
+
+- time to first useful action after opening the app
+- session starts per week
+- workflow completion rate
+- outputs captured per scenario
+- number of scenarios actively used
+- number of reviews generated from real work
 
 ## Future Expansion
-- Local persistence for sessions, outputs, prompts, tools, and workflows
-- Editable scenarios, workflows, prompts, and tools
-- Context attachments at workflow and step level
-- Scenario-based review system
-- Automation-ready workflow schema and exports
-- Multi-user and template-based productization later
+
+- repository/service layer for backend migration
+- auth and user workspaces
+- shared template packs
+- multi-user support
+- optional AI-assisted review generation later

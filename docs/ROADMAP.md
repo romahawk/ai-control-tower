@@ -1,172 +1,142 @@
 # AI Control Tower Roadmap
 
-## Phase 1 - Static System
-### Goal
-Ship a usable static control tower for browsing scenarios, workflows, tools, and prompts.
+This roadmap reflects the current repo direction and implementation state as of 2026-05-04.
 
-### Features
-- Static data layer
-- Dashboard / control tower
+The product model is:
+
+`Scenario -> Workflow -> Step -> Tool / Prompt / Context -> Execution -> Output -> Review`
+
+## Why The Roadmap Changed
+
+The older repo framing treated Income Engine as the product. The current direction treats Income Engine as one important scenario inside a broader Personal Execution OS.
+
+That shift matters because the product is solving:
+- AI tool sprawl
+- prompt overload
+- project overload
+- missing execution structure
+- missing output and review loops
+
+## Phase Status
+
+| Phase | Name | Status | Notes |
+| --- | --- | --- | --- |
+| 0 | Re-audit and documentation update | Complete | Docs now reflect the scenario-first execution model. |
+| 1 | Static Control Tower foundation | Complete | Dashboard, libraries, navigation, and seeded templates remain intact. |
+| 2 | Personal Execution OS | Complete | Workflow sessions, step completion, output logging, blockers, pause/resume, summaries, and local persistence are implemented. |
+| 3 | Scenario refactor | Complete | `Scenario` is now the top-level model and Income Engine is one scenario. |
+| 4 | Context + Prompt Governance | Complete | Context records persist locally and prompts are step-aware with execution-pack support. |
+| 5 | Product Development scenario | Complete | Product Development scenario and its validation workflows are seeded into the same universal system. |
+| 6 | Review / Decision Intelligence | Partial | Local review generation and deterministic next actions exist; richer workflow review UX can expand further. |
+| 7 | Productization readiness | Partial | Export/import/reset/demo/template-pack structure and backend migration notes exist without introducing SaaS complexity. |
+
+## Phase 1. Static Control Tower Foundation
+
+Goal:
+Preserve and clean up the static shell without losing existing functionality.
+
+Included:
+- Dashboard shell
+- Sidebar and top navigation
 - Workflow library
-- Tool registry
 - Prompt library
-- External launch links
-- Copy-to-clipboard prompts
+- Tool registry
+- Static seed data
 
-### Acceptance Criteria
-- User can browse workflows, prompts, and tools
-- User can open external tools from workflow and tool views
-- User can copy prompts directly from the app
+Done:
+- Seed data remains visible and typed
+- Existing browsing and prompt copy flows were preserved
+- Naming moved toward Control Tower / Scenario without risky full rewrites
 
-### Status
-- Done
+## Phase 2. Personal Execution OS
 
-### Notes
-- Implemented, but still framed in code as income-engine-heavy rather than universal scenario-first
+Goal:
+Turn the app from a viewer into an executable workflow system.
 
-## Phase 2 - Execution Layer
-### Goal
-Turn the static system into a guided execution system.
-
-### Features
-- Active workflow session / run mode
-- Current-step focus
-- Step navigation
-- Step completion state
+Implemented:
+- Workflow session creation
+- Active session focus
+- Step completion
 - Output logging
-- Session summary
+- Blocker notes
+- Pause and resume notes
+- Session finishing
+- Session summaries
+- Local persistence with safe loading
 
-### Acceptance Criteria
-- User can start and resume a workflow session
-- User can see one current step at a time
-- User can mark progress inside a session
-- User can log outputs during execution
-- User can review a short session summary before leaving
+## Phase 3. Scenario Refactor
 
-### Status
-- Partial
+Goal:
+Replace Income Engine as the app identity with Scenario as the top-level model.
 
-### Already Done
-- Active workflow run mode
-- Current-step focus in workflow library
-- Next / previous step navigation
-- Step jumping
-- Prompt copy and tool launch inside run mode
+Implemented:
+- `Scenario` as first-class entity
+- Scenario switcher on the dashboard
+- Scenario-based workflow, prompt, tool, and context views
+- Legacy `INCOME_ENGINES` retained only as a compatibility adapter
 
-### Missing
-- Step completion state
-- Output logging
-- Blocked / resume notes
-- Session summary / wrap-up
-- Real review layer
+## Phase 4. Context + Prompt Governance
 
-## Phase 3 - Persistence + Editability
-### Goal
-Make the system personally durable and editable.
+Goal:
+Reduce prompt overload by attaching prompts and context to active steps.
 
-### Features
-- Local persistence
-- Editable prompts
-- Editable workflows
-- Editable tools
-- Custom workflow variants
+Implemented:
+- Context manager with local persistence
+- Scenario/workflow-linked context records
+- Prompt metadata for purpose, version, required input, and expected output
+- Step-specific prompt surfacing
+- Copy execution pack action
 
-### Acceptance Criteria
-- Scenario and session state persists across refreshes
-- User can edit and save prompts, workflows, and tools
-- Built-in templates remain separate from user-edited records
+## Phase 5. Product Development Scenario
 
-### Status
-- Not started
+Goal:
+Validate product ideas quickly for solo entrepreneurship.
 
-### Already Done
-- Static templates and shell structure are in place
+Implemented:
+- Product Development scenario
+- Seed workflows for intake, framing, research, economics, MVP scope, experiments, and build/kill/pivot
+- Shared universal model instead of scenario-specific hardcoding
 
-### Missing
-- Persistence layer
-- Editable records
-- Template vs user-data separation
+## Phase 6. Review / Decision Intelligence
 
-## Phase 4 - Scenario Expansion + Context Layer
-### Goal
-Expand beyond income-only framing and support context-aware execution across life domains.
+Goal:
+Add a review layer that reduces cognitive overload and turns outputs into next actions.
 
-### Features
-- Scenario layer and scenario dashboard
-- Scenario switching
-- Scenario-based filtering
-- Context layer for workflows and steps
-- Universal output system
-- Scenario-based review system
+Implemented now:
+- Review view
+- Daily, weekly, and scenario review creation
+- Blocked workflow visibility
+- Recent outputs
+- Decision log
+- Deterministic next-action rules
 
-### Acceptance Criteria
-- User can switch between scenarios beyond income work
-- Workflows, prompts, and tools can be filtered by scenario
-- Context can be attached to workflows and steps
-- Outputs and reviews work across all scenarios
+Still useful later:
+- Richer workflow-specific review creation UX
+- More nuanced decision heuristics
+- Review comparison over time
 
-### Status
-- Not started
+## Phase 7. Productization Readiness
 
-### Already Done
-- Placeholder context manager exists
-- Static workflows already hint at cross-domain expansion
+Goal:
+Prepare for future backend and multi-user expansion without overbuilding now.
 
-### Missing
-- Real scenario entity in the app
-- Context attachments
-- Universal outputs
-- Review system
+Implemented now:
+- Seed templates separated from local user data
+- Export/import/reset/demo controls
+- Template pack structure
+- Backend migration notes in docs
 
-## Phase 5 - Automation Readiness
-### Goal
-Prepare the system for export, import, and external execution compatibility without automating in-product yet.
+Future productization work:
+- Auth
+- database repositories
+- workspace isolation
+- sharing
+- multi-user support
 
-### Features
-- Canonical schema
-- CSV import/export
-- OpenClaw-compatible export adapter
+## Current Non-Goals
 
-### Acceptance Criteria
-- Workflow definitions are stable and portable
-- Scenario, workflow, context, and output data can be exported/imported safely
-- OpenClaw-compatible export path exists for supported workflow definitions
-
-### Status
-- Not started
-
-### Already Done
-- Static template data gives a starting structure
-
-### Missing
-- Canonical normalized schema
-- Import/export pipeline
-- Automation compatibility layer
-
-## Phase 6 - Productization
-### Goal
-Turn the single-user local system into a product-ready platform.
-
-### Features
-- Multi-user and workspace architecture
-- Template packs
-- Public demo mode
-- Proof / case-study integration
-
-### Acceptance Criteria
-- Product boundaries for users and workspaces are defined
-- Reusable template packs exist
-- Demo mode shows the product clearly without setup
-- Outputs can feed proof assets and case studies
-
-### Status
-- Not started
-
-### Already Done
-- Seeded workflows and prompts provide a strong starting template base
-
-### Missing
-- Workspace model
-- Productized onboarding path
-- Demo layer
-- Proof asset layer
+- Backend-first rewrite
+- auth flows in the MVP runtime
+- AI API orchestration inside the app
+- agent automation layer
+- SaaS billing or onboarding
