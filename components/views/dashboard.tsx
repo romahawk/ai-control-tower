@@ -1,265 +1,283 @@
 "use client"
 
-import { ArrowRight, Briefcase, ExternalLink, GitBranch, Play, Target } from "lucide-react"
-import { INCOME_ENGINES } from "@/data/income-engines"
-import { WORKFLOWS } from "@/data/workflows"
-import { TOOLS } from "@/data/tools"
-import { Badge } from "@/components/ui/badge"
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  Compass,
+  Layers3,
+  PlayCircle,
+  SearchCheck,
+} from "lucide-react"
+import { SCENARIOS } from "@/data/scenarios"
+import { getScenarioById, getWorkflowById } from "@/lib/control-tower"
+import { getScenarioIcon } from "@/lib/ui-meta"
+import { ActionCard } from "@/components/ui/action-card"
+import { EmptyState } from "@/components/ui/empty-state"
+import { MetricCard } from "@/components/ui/metric-card"
+import { SectionHeader } from "@/components/ui/section-header"
+import { StatusBadge } from "@/components/ui/status-badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import type { ActiveWorkflowSession, ViewType } from "@/types"
+import { Card, CardContent } from "@/components/ui/card"
+import type { OutputRecord, ReviewRecord, Scenario, ViewType, WorkflowSession } from "@/types"
 
 interface DashboardProps {
+  selectedScenario: Scenario
+  activeSessions: WorkflowSession[]
+  recentOutputs: OutputRecord[]
+  recentReviews: ReviewRecord[]
+  nextActions: string[]
   onNavigate: (view: ViewType) => void
-  onOpenCommand: () => void
   onOpenWorkflow: (workflowId: string) => void
   onStartWorkflowSession: (workflowId: string) => void
-  activeWorkflowSession: ActiveWorkflowSession | null
+  onSelectScenario: (scenarioId: string) => void
 }
 
-const primaryEngine =
-  INCOME_ENGINES.find((engine) => engine.priority === "Primary") ?? INCOME_ENGINES[0]
-const nextWorkflow =
-  WORKFLOWS.find((workflow) => workflow.id === primaryEngine.activeWorkflowId) ?? WORKFLOWS[0]
-const nextStep = nextWorkflow.steps[1] ?? nextWorkflow.steps[0]
-const recommendedTool =
-  TOOLS.find((tool) => tool.id === nextStep?.toolIds[0]) ?? TOOLS[0]
-
 export function Dashboard({
+  selectedScenario,
+  activeSessions,
+  recentOutputs,
+  recentReviews,
+  nextActions,
   onNavigate,
-  onOpenCommand,
   onOpenWorkflow,
   onStartWorkflowSession,
-  activeWorkflowSession,
+  onSelectScenario,
 }: DashboardProps) {
-  const activeSessionMatchesPrimary = activeWorkflowSession?.workflowId === nextWorkflow.id
-  const activeSessionStepNumber = activeSessionMatchesPrimary && activeWorkflowSession
-    ? activeWorkflowSession.currentStepIndex + 1
-    : null
-  const activeSessionStep =
-    activeSessionMatchesPrimary && activeWorkflowSession
-      ? nextWorkflow.steps[activeWorkflowSession.currentStepIndex] ?? nextWorkflow.steps[0]
-      : null
+  const scenarioSessions = activeSessions.filter((session) => session.scenarioId === selectedScenario.id)
+  const blockedSessions = scenarioSessions.filter((session) => session.status === "blocked")
+  const completedSessions = activeSessions.filter((session) => session.status === "completed").slice(0, 3)
+  const activeSession = scenarioSessions.find((session) => session.status === "active" || session.status === "paused" || session.status === "blocked")
+  const activeWorkflow = activeSession ? getWorkflowById(activeSession.workflowId) : getWorkflowById(selectedScenario.defaultWorkflowIds?.[0])
+  const currentStep = activeSession && activeWorkflow
+    ? activeWorkflow.steps.find((step) => step.id === activeSession.currentStepId) ?? activeWorkflow.steps[0]
+    : activeWorkflow?.steps[0]
+  const pendingReview = recentOutputs.length > 0 && recentReviews.length === 0
 
   return (
-    <div className="p-6 space-y-6 max-w-[1320px] mx-auto">
-      <div
-        className="rounded-2xl border border-border bg-card/70 p-6 cursor-pointer hover:border-primary/30 transition-colors"
-        onClick={onOpenCommand}
-      >
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2">
-            <Badge variant="secondary" className="bg-primary/10 text-primary border border-primary/20">
-              Control Tower
-            </Badge>
-            <div>
-              <h1 className="text-2xl font-semibold text-foreground">Run one clear workflow at a time.</h1>
-              <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-                Use the dashboard to see the active income engine, the next manual action,
-                and the workflow that should get your attention now.
+    <div className="h-full overflow-auto p-4">
+      <div className="mx-auto flex max-w-[1320px] flex-col gap-6">
+        <section className="surface-panel rounded-3xl p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="max-w-3xl">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">AI Control Tower</p>
+              <h1 className="mt-2 text-display text-foreground">Scenario-based execution system for tools, prompts, workflows, outputs, and reviews.</h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+                The dashboard is designed to answer one question first: what matters now? Choose the active scenario, continue the next useful step, and let outputs feed the review layer.
               </p>
             </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => onNavigate("wiki")}>
+                Learn how it works
+              </Button>
+              <Button onClick={() => onNavigate("workflows")}>
+                Open workflows
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <Button variant="outline" className="self-start lg:self-auto">
-              Open quick command
-            </Button>
-            <Button variant="secondary" onClick={() => onNavigate("workflows")}>
-              Browse workflows
-            </Button>
-          </div>
+        </section>
+
+        <ActionCard
+          icon={activeSession?.status === "blocked" ? AlertTriangle : PlayCircle}
+          eyebrow="Next required action"
+          title={
+            activeSession?.status === "blocked"
+              ? "Resolve the blocker before switching attention."
+              : activeWorkflow
+                ? `Continue ${activeWorkflow.title}`
+                : "Start the next workflow"
+          }
+          description={
+            activeSession?.status === "blocked"
+              ? activeSession.blockerNote || "This session is blocked and needs an explicit unblock or pause decision."
+              : currentStep
+                ? `${selectedScenario.name} -> ${activeWorkflow?.title} -> ${currentStep.title}. Expected output: ${currentStep.expectedOutput}`
+                : nextActions[0] ?? "Choose a scenario and start a workflow session."
+          }
+          meta={
+            <>
+              <StatusBadge status={activeSession?.status ?? "not-started"} />
+              {activeWorkflow ? <span className="rounded-full border border-border bg-secondary/30 px-3 py-1 text-xs font-medium text-foreground">{activeWorkflow.title}</span> : null}
+              {currentStep ? <span className="rounded-full border border-border bg-secondary/30 px-3 py-1 text-xs font-medium text-foreground">{currentStep.title}</span> : null}
+            </>
+          }
+          action={
+            <div className="flex flex-wrap gap-2">
+              {activeWorkflow ? (
+                <Button onClick={() => onOpenWorkflow(activeWorkflow.id)}>
+                  {activeSession ? "Continue execution" : "Open workflow"}
+                </Button>
+              ) : null}
+              {activeWorkflow && !activeSession ? (
+                <Button variant="outline" onClick={() => onStartWorkflowSession(activeWorkflow.id)}>
+                  Start workflow
+                </Button>
+              ) : null}
+              {blockedSessions.length > 0 ? (
+                <Button variant="outline" onClick={() => onNavigate("reviews")}>
+                  Review blockers
+                </Button>
+              ) : null}
+            </div>
+          }
+        />
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard icon={Compass} label="Active scenario" value={selectedScenario.name} hint={selectedScenario.category} />
+          <MetricCard icon={PlayCircle} label="Active sessions" value={scenarioSessions.length} hint="Sessions needing attention now" tone="default" />
+          <MetricCard icon={AlertTriangle} label="Blocked sessions" value={blockedSessions.length} hint="Needs unblock or pause decision" tone={blockedSessions.length > 0 ? "danger" : "default"} />
+          <MetricCard icon={CheckCircle2} label="Recent completions" value={completedSessions.length} hint="Completed sessions across the workspace" tone="success" />
         </div>
-      </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.25fr_0.95fr]">
-        <Card className="border-border bg-card/70">
-          <CardHeader className="gap-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Briefcase className="w-4 h-4 text-primary" />
-                <CardTitle>Active Income Engine</CardTitle>
-              </div>
-              <Badge variant="outline" className="border-primary/30 text-primary">
-                {primaryEngine.priority}
-              </Badge>
+        <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+          <section className="surface-panel rounded-3xl p-6">
+            <SectionHeader
+              icon={Layers3}
+              title="Scenario overview"
+              description="Use scenarios as the top-level focus layer. Active and paused states matter more than total volume."
+            />
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              {SCENARIOS.map((scenario) => {
+                const Icon = getScenarioIcon(scenario.category)
+                const workflowCount = scenario.defaultWorkflowIds?.length ?? 0
+                const scenarioSessionCount = activeSessions.filter((session) => session.scenarioId === scenario.id).length
+                const isSelected = scenario.id === selectedScenario.id
+                return (
+                  <button
+                    key={scenario.id}
+                    onClick={() => onSelectScenario(scenario.id)}
+                    className={`rounded-2xl border p-4 text-left transition-colors ${
+                      isSelected
+                        ? "border-primary/25 bg-primary/10"
+                        : "border-border bg-secondary/20 hover:border-primary/15 hover:bg-secondary/30"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{scenario.name}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{scenario.description}</p>
+                        </div>
+                      </div>
+                      <StatusBadge status={scenario.status} />
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      <span className="rounded-full border border-border bg-secondary/30 px-2.5 py-1">{workflowCount} workflows</span>
+                      <span className="rounded-full border border-border bg-secondary/30 px-2.5 py-1">{scenarioSessionCount} sessions</span>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
-            <CardDescription>{primaryEngine.description}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-border bg-secondary/30 p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Engine</p>
-                <p className="text-lg font-semibold text-foreground mt-1">{primaryEngine.name}</p>
-              </div>
-              <div className="rounded-xl border border-border bg-secondary/30 p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Status</p>
-                <p className="text-lg font-semibold text-foreground mt-1">{primaryEngine.status}</p>
-              </div>
-              <div className="rounded-xl border border-border bg-secondary/30 p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Target Output</p>
-                <p className="text-sm font-semibold text-foreground mt-1">{primaryEngine.targetOutput}</p>
-              </div>
-            </div>
+          </section>
 
-            <div className="rounded-xl border border-primary/20 bg-primary/8 p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-primary/80">Current workflow</p>
-                  <h2 className="text-xl font-semibold text-foreground mt-1">{nextWorkflow.title}</h2>
-                  <p className="text-sm text-muted-foreground mt-2">{nextWorkflow.goal}</p>
-                  {activeSessionStep ? (
-                    <p className="text-xs text-primary mt-3">
-                      Active run mode: step {activeSessionStepNumber} of{" "}
-                      {nextWorkflow.steps.length} - {activeSessionStep.title}
-                    </p>
-                  ) : null}
+          <section className="surface-panel rounded-3xl p-6">
+            <SectionHeader
+              icon={SearchCheck}
+              title="Review overview"
+              description="Reviews keep outputs from turning into more open loops."
+              action={
+                <Button variant="outline" size="sm" onClick={() => onNavigate("reviews")}>
+                  Open reviews
+                </Button>
+              }
+            />
+            <div className="mt-5 space-y-3">
+              <div className="surface-subtle rounded-2xl p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Last review</p>
+                <p className="mt-2 text-sm font-medium text-foreground">
+                  {recentReviews[0] ? new Date(recentReviews[0].createdAt).toLocaleString() : "No reviews created yet"}
+                </p>
+              </div>
+              {pendingReview ? (
+                <div className="rounded-2xl border border-warning/20 bg-warning/10 p-4">
+                  <p className="text-sm font-semibold text-foreground">Outputs exist without a saved review.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Create a daily or weekly review so the system ends with a decision, not just activity.</p>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <Button onClick={() => onOpenWorkflow(nextWorkflow.id)}>
-                    {activeSessionMatchesPrimary ? "Resume workflow" : "Open workflow"}
-                  </Button>
-                  {!activeSessionMatchesPrimary ? (
-                    <Button variant="outline" onClick={() => onStartWorkflowSession(nextWorkflow.id)}>
-                      <Play className="w-4 h-4" />
-                      Start run mode
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border bg-card/70">
-          <CardHeader className="gap-3">
-            <div className="flex items-center gap-2">
-              <Target className="w-4 h-4 text-accent" />
-              <CardTitle>Single Next Action</CardTitle>
-            </div>
-            <CardDescription>
-              One action with a recommended workflow and tool to reduce decision drag.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-xl border border-border bg-secondary/30 p-4">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Next action</p>
-              <p className="text-lg font-semibold text-foreground mt-1">{primaryEngine.nextAction}</p>
-            </div>
-            <div className="space-y-3 text-sm">
-              <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-4 py-3">
-                <span className="text-muted-foreground">Linked workflow</span>
-                <span className="font-medium text-foreground">{nextWorkflow.title}</span>
-              </div>
-              <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-4 py-3">
-                <span className="text-muted-foreground">Recommended tool</span>
-                <span className="font-medium text-foreground">{recommendedTool.name}</span>
-              </div>
-              <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-4 py-3">
-                <span className="text-muted-foreground">Expected output</span>
-                <span className="font-medium text-foreground text-right">{nextStep.expectedOutput}</span>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Button onClick={() => onOpenWorkflow(nextWorkflow.id)}>
-                Open workflow
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" asChild>
-                <a href={recommendedTool.url} target="_blank" rel="noopener noreferrer">
-                  Launch {recommendedTool.name}
-                  <ExternalLink className="w-4 h-4" />
-                </a>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-        <Card className="border-border bg-card/70">
-          <CardHeader className="gap-3">
-            <div className="flex items-center gap-2">
-              <Briefcase className="w-4 h-4 text-primary" />
-              <CardTitle>Income Engine Overview</CardTitle>
-            </div>
-            <CardDescription>
-              See how each engine is being run and where the current target output sits.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-2">
-            {INCOME_ENGINES.map((engine) => {
-              const workflow = WORKFLOWS.find((item) => item.id === engine.activeWorkflowId)
-              return (
-                <button
-                  key={engine.id}
-                  onClick={() => workflow && onOpenWorkflow(workflow.id)}
-                  className="rounded-xl border border-border bg-secondary/25 p-4 text-left hover:border-primary/30 hover:bg-secondary/40 transition-colors"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold text-foreground">{engine.name}</p>
-                    <Badge variant="outline" className="border-border text-muted-foreground">
-                      {engine.priority}
-                    </Badge>
+              ) : null}
+              <div className="space-y-2">
+                {nextActions.slice(0, 3).map((action) => (
+                  <div key={action} className="surface-subtle rounded-2xl p-4 text-sm text-foreground">
+                    {action}
                   </div>
-                  <p className="text-sm text-muted-foreground mt-2">{engine.status}</p>
-                  <p className="text-sm text-foreground mt-4">{workflow?.title ?? "No active workflow"}</p>
-                  <p className="text-xs text-muted-foreground mt-2">{engine.targetOutput}</p>
-                </button>
-              )
-            })}
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </div>
+          </section>
+        </div>
 
-        <Card className="border-border bg-card/70">
-          <CardHeader className="gap-3">
-            <div className="flex items-center gap-2">
-              <GitBranch className="w-4 h-4 text-accent" />
-              <CardTitle>Current Workflow Preview</CardTitle>
+        <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+          <section className="surface-panel rounded-3xl p-6">
+            <SectionHeader
+              icon={PlayCircle}
+              title="Execution overview"
+              description="Current work should stay more visible than completed work."
+            />
+            <div className="mt-5 grid gap-3">
+              {scenarioSessions.length > 0 ? (
+                scenarioSessions.slice(0, 5).map((session) => {
+                  const workflow = getWorkflowById(session.workflowId)
+                  const step = workflow?.steps.find((item) => item.id === session.currentStepId) ?? workflow?.steps[0]
+                  return (
+                    <button
+                      key={session.id}
+                      onClick={() => onOpenWorkflow(session.workflowId)}
+                      className="rounded-2xl border border-border bg-secondary/20 p-4 text-left transition hover:border-primary/20 hover:bg-secondary/30"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{workflow?.title ?? session.workflowId}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{step ? `Current step: ${step.title}` : "No active step"}</p>
+                        </div>
+                        <StatusBadge status={session.status} />
+                      </div>
+                    </button>
+                  )
+                })
+              ) : (
+                <EmptyState
+                  icon={PlayCircle}
+                  title="No active sessions"
+                  description="Start a workflow from the selected scenario to make the dashboard action-oriented."
+                  primaryAction={<Button onClick={() => onNavigate("workflows")}>Browse workflows</Button>}
+                />
+              )}
             </div>
-            <CardDescription>
-              Preview the workflow before opening the full step-by-step view.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div>
-              <h3 className="text-lg font-semibold text-foreground">{nextWorkflow.title}</h3>
-              <p className="text-sm text-muted-foreground mt-2">{nextWorkflow.goal}</p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-border bg-secondary/25 p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Steps</p>
-                <p className="text-lg font-semibold text-foreground mt-1">{nextWorkflow.steps.length}</p>
-              </div>
-              <div className="rounded-xl border border-border bg-secondary/25 p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Frequency</p>
-                <p className="text-lg font-semibold text-foreground mt-1">{nextWorkflow.frequency}</p>
-              </div>
-              <div className="rounded-xl border border-border bg-secondary/25 p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Output</p>
-                <p className="text-sm font-semibold text-foreground mt-1">{nextWorkflow.output}</p>
-              </div>
-            </div>
-            <div className="space-y-2">
-              {nextWorkflow.steps.slice(0, 3).map((step, index) => (
-                <div
-                  key={step.id}
-                  className="flex items-start gap-3 rounded-lg border border-border bg-secondary/20 px-4 py-3"
-                >
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
-                    {index + 1}
+          </section>
+
+          <section className="surface-panel rounded-3xl p-6">
+            <SectionHeader
+              icon={CheckCircle2}
+              title="Recent outputs"
+              description="Completed artifacts stay visible, but quieter than active or blocked work."
+            />
+            <div className="mt-5 grid gap-3">
+              {recentOutputs.slice(0, 5).map((output) => (
+                <div key={output.id} className="rounded-2xl border border-border bg-secondary/15 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-foreground">{output.title}</p>
+                    <span className="rounded-full border border-success/20 bg-success/10 px-2.5 py-1 text-[11px] font-semibold text-success">
+                      {output.type}
+                    </span>
                   </div>
-                  <div>
-                    <p className="font-medium text-foreground">{step.title}</p>
-                    <p className="text-sm text-muted-foreground mt-1">{step.description}</p>
-                  </div>
+                  <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">{output.content}</p>
                 </div>
               ))}
+              {recentOutputs.length === 0 ? (
+                <EmptyState
+                  icon={CheckCircle2}
+                  title="No outputs captured yet"
+                  description="Save outputs during workflow execution so reviews and next actions have something real to work from."
+                  primaryAction={<Button onClick={() => onNavigate("workflows")}>Go to workflows</Button>}
+                />
+              ) : null}
             </div>
-            <Button onClick={() => onOpenWorkflow(nextWorkflow.id)} variant="outline">
-              View full workflow
-            </Button>
-          </CardContent>
-        </Card>
+          </section>
+        </div>
       </div>
     </div>
   )

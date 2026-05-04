@@ -1,41 +1,61 @@
 # Data Model
 
+## Canonical Product Flow
+
+`Scenario -> Workflow -> Step -> Tool / Prompt / Context -> Execution -> Output -> Review`
+
 ## Canonical Interfaces
+
 ```ts
-export interface Scenario {
+type Scenario = {
   id: string
   name: string
   description: string
-  category: "income-engine" | "life-strategy" | "family-home" | "admin-tasks" | "sport-health" | "custom"
-  activeWorkflowId?: string
+  category:
+    | "income-engine"
+    | "product-development"
+    | "life-strategy"
+    | "admin-tasks"
+    | "family-home"
+    | "sport-health"
+    | "learning"
+    | "custom"
+  status: "active" | "paused" | "archived"
+  priority?: "low" | "medium" | "high"
+  defaultWorkflowIds?: string[]
+  toolIds?: string[]
+  promptIds?: string[]
   nextAction?: string
-  linkedWorkflowIds: string[]
+  targetOutput?: string
 }
 
-export interface Workflow {
+type Workflow = {
   id: string
   title: string
-  scenarioId: string
   goal: string
+  scenarioId: string
   trigger: string
   steps: WorkflowStep[]
   output: string
   successMetric: string
   frequency: string
   status: "draft" | "ready" | "active" | "archived"
+  completionCriteria?: string
 }
 
-export interface WorkflowStep {
+type WorkflowStep = {
   id: string
   title: string
   description: string
   toolIds: string[]
   promptIds: string[]
+  contextIds?: string[]
   expectedOutput: string
+  completionCriteria?: string
   launchUrl?: string
 }
 
-export interface Tool {
+type Tool = {
   id: string
   name: string
   category: string
@@ -44,111 +64,143 @@ export interface Tool {
   avoidWhen: string
   url: string
   linkedWorkflowIds: string[]
+  scenarioIds?: string[]
 }
 
-export interface Prompt {
+type Prompt = {
   id: string
   title: string
   category: string
   content: string
-  linkedToolId: string
-  linkedWorkflowId: string
-  linkedProjectId?: string
+  scenarioId?: string
+  workflowId?: string
+  stepId?: string
+  toolId?: string
+  purpose: "research" | "planning" | "drafting" | "analysis" | "review" | "decision" | "execution"
+  inputRequired: string
+  expectedOutput: string
+  version: string
 }
 
-export interface Context {
+type ContextRecord = {
   id: string
-  type: "note" | "link" | "file" | "doc"
+  title: string
   content: string
-  linkedWorkflowId?: string
-  linkedStepId?: string
+  type:
+    | "project"
+    | "personal"
+    | "business"
+    | "customer"
+    | "technical"
+    | "decision"
+    | "reference"
+  scenarioId?: string
+  workflowId?: string
+  stepId?: string
+  promptId?: string
+  toolId?: string
+  tags?: string[]
+  createdAt: string
+  updatedAt: string
 }
 
-export interface WorkflowSession {
+type WorkflowSession = {
   id: string
   scenarioId: string
   workflowId: string
-  currentStepIndex: number
-  completedStepIds: string[]
-  outputs: Output[]
-  status: "idle" | "active" | "blocked" | "completed"
+  status: "active" | "paused" | "blocked" | "completed"
   startedAt: string
+  updatedAt: string
   completedAt?: string
+  currentStepId?: string
+  stepExecutions: StepExecution[]
+  outputs: OutputRecord[]
+  blockerNote?: string
+  resumeNote?: string
+  summary?: string
 }
 
-export interface Output {
+type StepExecution = {
   id: string
+  sessionId: string
+  workflowId: string
+  stepId: string
+  status: "not-started" | "active" | "completed" | "blocked" | "skipped"
+  startedAt?: string
+  completedAt?: string
+  outputIds: string[]
+  note?: string
+}
+
+type OutputRecord = {
+  id: string
+  sessionId: string
+  stepId?: string
   scenarioId: string
   workflowId: string
-  type: string
+  type: "note" | "decision" | "link" | "artifact" | "summary"
   title: string
-  value: string
-  note?: string
+  content: string
   createdAt: string
+  updatedAt: string
+  toolId?: string
+  promptId?: string
 }
 
-export interface Review {
+type ReviewRecord = {
   id: string
-  scenarioId: string
-  title: string
-  summary: string
-  linkedOutputIds: string[]
-  nextAction?: string
+  type: "daily" | "weekly" | "scenario" | "workflow"
+  scenarioId?: string
+  workflowId?: string
+  sessionIds: string[]
+  outputIds: string[]
+  decisions: string[]
+  blockers: string[]
+  nextActions: string[]
   createdAt: string
 }
 ```
 
-## Example Objects
+## Library vs Execution Split
+
+### Library Layer
+- scenarios
+- workflows
+- steps
+- prompts
+- tools
+- seeded context
+
+These are stable templates.
+
+### Execution Layer
+- workflow sessions
+- step executions
+- output records
+- review records
+- user-added context
+
+These are mutable user records.
+
+## Persistence Model
+
+Current persisted workspace shape:
+
 ```ts
-export const incomeEngineScenario: Scenario = {
-  id: "scenario-income-engine",
-  name: "Income Engine",
-  description: "Revenue, career, and proof-building workflows.",
-  category: "income-engine",
-  activeWorkflowId: "agency-lead-generation",
-  nextAction: "Resume Agency Lead Generation step 2.",
-  linkedWorkflowIds: [
-    "agency-lead-generation",
-    "high-fit-job-discovery",
-    "product-case-study-extraction",
-    "trading-review"
-  ]
-}
-
-export const workflowSession: WorkflowSession = {
-  id: "session-agency-001",
-  scenarioId: "scenario-income-engine",
-  workflowId: "agency-lead-generation",
-  currentStepIndex: 1,
-  completedStepIds: ["agency-step-1"],
-  outputs: [],
-  status: "active",
-  startedAt: "2026-04-27T08:00:00.000Z"
-}
-
-export const workflowContext: Context = {
-  id: "context-agency-offer",
-  type: "note",
-  content: "Target Hamburg service businesses with weak mobile UX and outdated conversion flow.",
-  linkedWorkflowId: "agency-lead-generation",
-  linkedStepId: "agency-step-2"
-}
-
-export const workflowOutput: Output = {
-  id: "output-agency-leads-001",
-  scenarioId: "scenario-income-engine",
-  workflowId: "agency-lead-generation",
-  type: "lead-list",
-  title: "Hamburg SME lead shortlist",
-  value: "15 qualified businesses with notes and pain points",
-  note: "Ready for hook drafting",
-  createdAt: "2026-04-27T08:35:00.000Z"
+type ControlTowerState = {
+  version: number
+  selectedScenarioId: string
+  selectedWorkflowId: string
+  activeSessionId?: string
+  sessions: WorkflowSession[]
+  contexts: ContextRecord[]
+  reviews: ReviewRecord[]
 }
 ```
 
-## Modeling Notes
-- `Scenario` replaces the old income-engine-first framing
-- `WorkflowSession` is the live execution state and must stay separate from workflow templates
-- `Output` is universal and should not assume only revenue-related value
-- `Context` should attach to either a workflow or an individual step
-- `Review` is a derived layer built from outputs and execution signals
+## Migration Notes
+
+- `scenarioId` is canonical
+- `incomeEngineId` should not be used in new code
+- legacy `INCOME_ENGINES` exists only as a compatibility adapter
+- local storage is the MVP persistence boundary until backend repositories exist

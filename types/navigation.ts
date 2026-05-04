@@ -1,6 +1,6 @@
 export type { ViewType } from "@/types"
 
-export interface Context {
+export interface ContextListItem {
   id: string
   name: string
   description: string
