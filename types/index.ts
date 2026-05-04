@@ -1,5 +1,6 @@
 export type ViewType =
   | "dashboard"
+  | "scenarios"
   | "prompts"
   | "execution"
   | "contexts"
@@ -26,6 +27,8 @@ export type SessionStatus = "active" | "paused" | "blocked" | "completed"
 export type StepExecutionStatus = "not-started" | "active" | "completed" | "blocked" | "skipped"
 export type OutputType = "note" | "decision" | "link" | "artifact" | "summary"
 export type ReviewType = "daily" | "weekly" | "scenario" | "workflow"
+export type QuickCaptureType = "task" | "prompt" | "idea" | "decision"
+export type WorkspaceBoardStatus = "inbox" | "clarify" | "active" | "waiting" | "done" | "blocked"
 export type PromptPurpose =
   | "research"
   | "planning"
@@ -184,6 +187,17 @@ export interface ReviewRecord {
   createdAt: string
 }
 
+export interface QuickCaptureRecord {
+  id: string
+  type: QuickCaptureType
+  content: string
+  status: WorkspaceBoardStatus
+  scenarioId?: string
+  workflowId?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface ControlTowerState {
   version: number
   selectedScenarioId: string
@@ -192,6 +206,7 @@ export interface ControlTowerState {
   sessions: WorkflowSession[]
   contexts: ContextRecord[]
   reviews: ReviewRecord[]
+  quickCaptures: QuickCaptureRecord[]
 }
 
 export interface IncomeEngine {

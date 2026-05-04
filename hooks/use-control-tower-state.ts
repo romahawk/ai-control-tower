@@ -8,6 +8,7 @@ import {
   addOutputToSession,
   blockSession,
   buildReviewRecord,
+  createQuickCapture,
   completeSessionStep,
   createInitialControlTowerState,
   createWorkflowSession,
@@ -315,6 +316,15 @@ export function useControlTowerState() {
     return review
   }
 
+  const saveQuickCapture = (params: {
+    type: "task" | "prompt" | "idea" | "decision"
+    content: string
+    scenarioId?: string
+    workflowId?: string
+  }) => {
+    updateState((currentState) => createQuickCapture(currentState, params))
+  }
+
   const downloadExport = () => {
     if (typeof window === "undefined") {
       return
@@ -385,6 +395,7 @@ export function useControlTowerState() {
     nextActions,
     reviewSummary,
     reviews: state.reviews,
+    quickCaptures: state.quickCaptures,
     selectScenario,
     selectWorkflow,
     startWorkflowSession,
@@ -401,6 +412,7 @@ export function useControlTowerState() {
     saveSessionSummary,
     createContextRecord,
     createReview,
+    saveQuickCapture,
     downloadExport,
     importWorkspace,
     resetWorkspace,

@@ -35,6 +35,11 @@ export function getStatusMeta(
     | "next"
     | "archived"
     | "not-started"
+    | "inbox"
+    | "clarify"
+    | "waiting"
+    | "done"
+    | "blocked"
 ) {
   const record: Record<string, { label: string; tone: StatusTone; icon: LucideIcon }> = {
     active: { label: "Active", tone: "active", icon: PlayCircle },
@@ -49,6 +54,10 @@ export function getStatusMeta(
     "not-started": { label: "Not started", tone: "draft", icon: CircleDashed },
     skipped: { label: "Skipped", tone: "neutral", icon: CircleDashed },
     next: { label: "Next", tone: "active", icon: PlayCircle },
+    inbox: { label: "Inbox", tone: "neutral", icon: CircleDashed },
+    clarify: { label: "Clarify", tone: "review", icon: BookOpen },
+    waiting: { label: "Waiting", tone: "pending", icon: PauseCircle },
+    done: { label: "Done", tone: "completed", icon: CheckCircle2 },
   }
 
   return record[status] ?? { label: status, tone: "neutral" as const, icon: CircleDashed }

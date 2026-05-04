@@ -1,51 +1,124 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { Copy, ExternalLink, MessageSquare, Search } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { Copy, ExternalLink, MessageSquare, PlayCircle, Sparkles } from "lucide-react"
+import { CompactCard } from "@/components/ui/compact-card"
+import { DetailPanel } from "@/components/ui/detail-panel"
 import { EmptyState } from "@/components/ui/empty-state"
-import { SectionHeader } from "@/components/ui/section-header"
+import { PageHeader } from "@/components/ui/page-header"
+import { QuickCapture } from "@/components/ui/quick-capture"
+import { ScenarioBadge } from "@/components/ui/scenario-badge"
+import { SegmentedTabs } from "@/components/ui/segmented-tabs"
 import { StatusBadge } from "@/components/ui/status-badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
-import { cn } from "@/lib/utils"
 import { getWorkflowById } from "@/lib/control-tower"
-import type { Prompt, Scenario, Tool } from "@/types"
+import type { Prompt, QuickCaptureRecord, QuickCaptureType, Scenario, Tool } from "@/types"
 
 interface PromptLibraryProps {
   selectedScenario: Scenario
   prompts: Prompt[]
   tools: Tool[]
+  quickCaptures: QuickCaptureRecord[]
   onOpenWorkflow: (workflowId: string) => void
+  onSaveQuickCapture: (params: {
+    type: QuickCaptureType
+    content: string
+    scenarioId?: string
+    workflowId?: string
+  }) => void
 }
 
-export function PromptLibrary({ selectedScenario, prompts, tools, onOpenWorkflow }: PromptLibraryProps) {
+type PromptTab = "library" | "favorites" | "recent" | "templates" | "archived"
+
+const promptTabs: Array<{ value: PromptTab; label: string }> = [
+  { value: "library", label: "Library" },
+  { value: "favorites", label: "Favorites" },
+  { value: "recent", label: "Recent" },
+  { value: "templates", label: "Templates" },
+  { value: "archived", label: "Archived" },
+]
+
+const filterChips = [
+  "all",
+  "strategy",
+  "execution",
+  "analysis",
+  "writing",
+  "review",
+  "product",
+  "job search",
+  "trading",
+  "admin",
+  "custom",
+] as const
+
+export function PromptLibrary({
+  selectedScenario,
+  prompts,
+  tools,
+  quickCaptures,
+  onOpenWorkflow,
+  onSaveQuickCapture,
+}: PromptLibraryProps) {
+  const [activeTab, setActiveTab] = useState<PromptTab>("library")
   const [query, setQuery] = useState("")
+  const [activeChip, setActiveChip] = useState<(typeof filterChips)[number]>("all")
   const [selectedPromptId, setSelectedPromptId] = useState(prompts[0]?.id ?? "")
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null)
 
   const filteredPrompts = useMemo(() => {
     const search = query.trim().toLowerCase()
+
     return prompts.filter((prompt) => {
-      if (!search) return true
-      const tool = tools.find((item) => item.id === prompt.toolId)
-      const workflow = getWorkflowById(prompt.workflowId)
-      return (
+      const workflow = prompt.workflowId ? getWorkflowById(prompt.workflowId) : undefined
+      const tool = prompt.toolId ? tools.find((item) => item.id === prompt.toolId) : undefined
+
+      const matchesSearch =
+        !search ||
         prompt.title.toLowerCase().includes(search) ||
         prompt.category.toLowerCase().includes(search) ||
         prompt.purpose.toLowerCase().includes(search) ||
         prompt.expectedOutput.toLowerCase().includes(search) ||
         prompt.content.toLowerCase().includes(search) ||
-        tool?.name.toLowerCase().includes(search) ||
-        workflow?.title.toLowerCase().includes(search)
-      )
-    })
-  }, [prompts, query, tools])
+        workflow?.title.toLowerCase().includes(search) ||
+        tool?.name.toLowerCase().includes(search)
 
-  const selectedPrompt =
-    filteredPrompts.find((prompt) => prompt.id === selectedPromptId) ??
-    filteredPrompts[0] ??
-    null
+      const promptKeywords = `${prompt.category} ${prompt.purpose} ${prompt.tags?.join(" ") ?? ""}`.toLowerCase()
+      const matchesChip =
+        activeChip === "all" ||
+        (activeChip === "strategy" && /planning|research|decision/.test(promptKeywords)) ||
+        (activeChip === "execution" && /execution/.test(promptKeywords)) ||
+        (activeChip === "analysis" && /analysis|research/.test(promptKeywords)) ||
+        (activeChip === "writing" && /drafting|writing/.test(promptKeywords)) ||
+        (activeChip === "review" && /review/.test(promptKeywords)) ||
+        (activeChip === "product" && /product/.test(promptKeywords)) ||
+        (activeChip === "job search" && /job/.test(promptKeywords)) ||
+        (activeChip === "trading" && /trading/.test(promptKeywords)) ||
+        (activeChip === "admin" && /admin/.test(promptKeywords)) ||
+        (activeChip === "custom" && prompt.scenarioId === "custom")
+
+      const matchesTab =
+        activeTab === "library" ||
+        (activeTab === "favorites" && prompt.tags?.includes("favorite")) ||
+        (activeTab === "recent" && prompts.slice(0, 8).some((item) => item.id === prompt.id)) ||
+        (activeTab === "templates" && !prompt.stepId) ||
+        activeTab === "archived"
+          ? activeTab !== "archived"
+          : true
+
+      return matchesSearch && matchesChip && matchesTab
+    }).filter((prompt) => activeTab !== "archived")
+  }, [activeChip, activeTab, prompts, query, tools])
+
+  useEffect(() => {
+    if (filteredPrompts[0] && !filteredPrompts.some((prompt) => prompt.id === selectedPromptId)) {
+      setSelectedPromptId(filteredPrompts[0].id)
+    }
+  }, [filteredPrompts, selectedPromptId])
+
+  const selectedPrompt = filteredPrompts.find((prompt) => prompt.id === selectedPromptId) ?? filteredPrompts[0] ?? null
+  const promptDrafts = quickCaptures.filter((capture) => capture.type === "prompt" && capture.scenarioId === selectedScenario.id)
 
   const copyPrompt = async (promptId: string, content: string) => {
     await navigator.clipboard.writeText(content)
@@ -54,134 +127,225 @@ export function PromptLibrary({ selectedScenario, prompts, tools, onOpenWorkflow
   }
 
   return (
-    <div className="flex h-full">
-      <aside className="surface-panel w-[390px] flex-shrink-0 border-r">
-        <div className="border-b border-border p-5">
-          <SectionHeader
-            icon={MessageSquare}
-            title="Prompt Library"
-            description={`${selectedScenario.name} prompts first. Use step-specific prompts before browsing the whole library.`}
-          />
-          <div className="relative mt-4">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search prompts, workflows, tools..." className="pl-9" />
-          </div>
-        </div>
+    <div className="h-full overflow-auto px-4 py-4 md:px-6">
+      <div className="mx-auto max-w-[1360px] space-y-4">
+        <PageHeader
+          title="Prompts"
+          description="Reusable prompts for execution, analysis, review, and creation."
+          icon={MessageSquare}
+          actionLabel="New prompt"
+          actionIcon={Sparkles}
+          onAction={() => setActiveTab("templates")}
+        />
 
-        <div className="h-[calc(100%-150px)] space-y-3 overflow-y-auto p-3">
-          {filteredPrompts.map((prompt) => {
-            const workflow = getWorkflowById(prompt.workflowId)
-            const tool = tools.find((item) => item.id === prompt.toolId)
-            const isActive = selectedPrompt?.id === prompt.id
-
-            return (
-              <button
-                key={prompt.id}
-                onClick={() => setSelectedPromptId(prompt.id)}
-                className={cn(
-                  "rounded-2xl border p-4 text-left transition-colors",
-                  isActive
-                    ? "border-primary/25 bg-primary/10"
-                    : "border-border bg-secondary/20 hover:border-primary/15 hover:bg-secondary/30"
-                )}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground">{prompt.title}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{workflow?.title ?? "No workflow linked"}</p>
-                  </div>
-                  <StatusBadge status="review" className="shrink-0" />
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="rounded-full border border-border bg-secondary/30 px-2.5 py-1 text-[11px] text-foreground">{prompt.purpose}</span>
-                  {tool ? <span className="rounded-full border border-border bg-secondary/30 px-2.5 py-1 text-[11px] text-muted-foreground">{tool.name}</span> : null}
-                  <span className="rounded-full border border-border bg-secondary/30 px-2.5 py-1 text-[11px] text-muted-foreground">v{prompt.version}</span>
-                </div>
-                <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">{prompt.expectedOutput}</p>
-              </button>
-            )
-          })}
-          {filteredPrompts.length === 0 ? (
-            <EmptyState icon={MessageSquare} title="No prompts found" description="Try another search or switch to a scenario with more attached prompts." />
-          ) : null}
-        </div>
-      </aside>
-
-      <div className="flex-1 overflow-y-auto p-6">
-        {selectedPrompt ? (
-          <Card className="surface-panel rounded-3xl">
-            <CardContent className="p-6">
-              <SectionHeader
-                icon={MessageSquare}
-                title={selectedPrompt.title}
-                description={selectedPrompt.category}
-                action={
-                  <Button variant="outline" onClick={() => copyPrompt(selectedPrompt.id, selectedPrompt.content)}>
-                    <Copy className="h-4 w-4" />
-                    {copiedPromptId === selectedPrompt.id ? "Copied" : "Copy prompt"}
-                  </Button>
-                }
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as PromptTab)} className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <SegmentedTabs tabs={promptTabs} />
+            <div className="min-w-[240px] flex-1 md:max-w-sm">
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search prompts, workflows, tools..."
               />
+            </div>
+          </div>
 
-              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <div className="surface-subtle rounded-2xl p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Purpose</p>
-                  <p className="mt-2 text-sm font-medium text-foreground">{selectedPrompt.purpose}</p>
-                </div>
-                <div className="surface-subtle rounded-2xl p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Workflow</p>
-                  <p className="mt-2 text-sm font-medium text-foreground">{getWorkflowById(selectedPrompt.workflowId)?.title ?? "No workflow linked"}</p>
-                </div>
-                <div className="surface-subtle rounded-2xl p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recommended tool</p>
-                  <p className="mt-2 text-sm font-medium text-foreground">{tools.find((tool) => tool.id === selectedPrompt.toolId)?.name ?? "No tool linked"}</p>
-                </div>
-                <div className="rounded-2xl border border-primary/20 bg-primary/8 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-primary/85">Expected output</p>
-                  <p className="mt-2 text-sm text-foreground">{selectedPrompt.expectedOutput}</p>
+          <div className="flex flex-wrap gap-2">
+            {filterChips.map((chip) => (
+              <button
+                key={chip}
+                onClick={() => setActiveChip(chip)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                  activeChip === chip
+                    ? "border-primary/25 bg-primary/12 text-primary"
+                    : "border-border/70 bg-secondary/20 text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+
+          <TabsContent value={activeTab} className="outline-none">
+            <div className="grid gap-4 xl:grid-cols-[0.88fr_1.12fr]">
+              <div className="space-y-4">
+                <QuickCapture
+                  selectedScenario={selectedScenario}
+                  quickCaptures={promptDrafts}
+                  onSave={onSaveQuickCapture}
+                  placeholder="Capture new prompt idea..."
+                  submitLabel="Save as draft"
+                />
+
+                <div className="grid gap-3">
+                  {filteredPrompts.map((prompt) => {
+                    const tool = prompt.toolId ? tools.find((item) => item.id === prompt.toolId) : undefined
+                    const workflow = prompt.workflowId ? getWorkflowById(prompt.workflowId) : undefined
+
+                    return (
+                      <CompactCard
+                        key={prompt.id}
+                        title={prompt.title}
+                        subtitle={prompt.expectedOutput}
+                        isActive={selectedPrompt?.id === prompt.id}
+                        onClick={() => setSelectedPromptId(prompt.id)}
+                        badges={
+                          <>
+                            <ScenarioBadge scenario={selectedScenario} />
+                            <span className="rounded-full border border-border/70 bg-secondary/25 px-2.5 py-1 text-[11px] text-muted-foreground">
+                              {prompt.category}
+                            </span>
+                            <StatusBadge status={prompt.purpose === "review" ? "review" : "clarify"} />
+                          </>
+                        }
+                        metadata={
+                          <>
+                            {tool ? <span>{tool.name}</span> : <span>No tool linked</span>}
+                            <span>{workflow?.title ?? "No workflow linked"}</span>
+                            <span>v{prompt.version}</span>
+                          </>
+                        }
+                        primaryAction={
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              copyPrompt(prompt.id, prompt.content)
+                            }}
+                            className="rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition hover:bg-primary/90"
+                          >
+                            {copiedPromptId === prompt.id ? "Copied" : "Copy"}
+                          </button>
+                        }
+                        secondaryAction={
+                          prompt.workflowId ? (
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                onOpenWorkflow(prompt.workflowId!)
+                              }}
+                              className="rounded-xl border border-border bg-secondary/25 px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-secondary/45"
+                            >
+                              Run
+                            </button>
+                          ) : undefined
+                        }
+                      />
+                    )
+                  })}
+
+                  {filteredPrompts.length === 0 ? (
+                    <EmptyState
+                      icon={MessageSquare}
+                      title="No prompts found"
+                      description="Try another filter or capture a new draft prompt idea."
+                    />
+                  ) : null}
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_0.9fr]">
-                <div className="rounded-2xl border border-border bg-secondary/15 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Prompt preview</p>
-                  <pre className="mt-4 whitespace-pre-wrap font-sans text-sm leading-7 text-foreground">{selectedPrompt.content}</pre>
-                </div>
-                <div className="space-y-4">
-                  <div className="surface-subtle rounded-2xl p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Input required</p>
-                    <p className="mt-2 text-sm text-foreground">{selectedPrompt.inputRequired}</p>
+              {selectedPrompt ? (
+                <DetailPanel
+                  title={selectedPrompt.title}
+                  subtitle={selectedPrompt.category}
+                  icon={MessageSquare}
+                  badges={
+                    <>
+                      <ScenarioBadge scenario={selectedScenario} />
+                      <StatusBadge status={selectedPrompt.purpose === "review" ? "review" : "clarify"} />
+                    </>
+                  }
+                  actions={
+                    <>
+                      <button
+                        onClick={() => copyPrompt(selectedPrompt.id, selectedPrompt.content)}
+                        className="rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
+                      >
+                        {copiedPromptId === selectedPrompt.id ? "Copied" : "Copy"}
+                      </button>
+                      {selectedPrompt.workflowId ? (
+                        <button
+                          onClick={() => onOpenWorkflow(selectedPrompt.workflowId!)}
+                          className="rounded-xl border border-border bg-secondary/25 px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-secondary/45"
+                        >
+                          Run
+                        </button>
+                      ) : null}
+                    </>
+                  }
+                  metadata={
+                    <>
+                      <span>Purpose: {selectedPrompt.purpose}</span>
+                      <span>Expected output: {selectedPrompt.expectedOutput}</span>
+                      <span>Version: {selectedPrompt.version}</span>
+                    </>
+                  }
+                >
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-primary/85">Purpose</p>
+                      <p className="mt-2 text-sm text-foreground">{selectedPrompt.purpose}</p>
+                    </div>
+                    <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Input required</p>
+                      <p className="mt-2 text-sm text-foreground">{selectedPrompt.inputRequired}</p>
+                    </div>
                   </div>
-                  <div className="surface-subtle rounded-2xl p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Attached step</p>
-                    <p className="mt-2 text-sm text-foreground">{selectedPrompt.stepId ?? "Workflow-level prompt"}</p>
+
+                  <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Prompt preview</p>
+                    <pre className="mt-3 whitespace-pre-wrap font-sans text-sm leading-6 text-foreground">
+                      {selectedPrompt.content}
+                    </pre>
                   </div>
-                  <div className="rounded-2xl border border-knowledge/20 bg-knowledge/10 p-4">
-                    <p className="text-sm font-semibold text-foreground">Prompt guidance</p>
-                    <p className="mt-1 text-sm text-muted-foreground">Use prompts from the current workflow step first. The full library is for discovery, not for replacing execution context.</p>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Linked workflow</p>
+                      <p className="mt-2 text-sm text-foreground">
+                        {selectedPrompt.workflowId ? getWorkflowById(selectedPrompt.workflowId)?.title ?? "No workflow linked" : "No workflow linked"}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recommended tool</p>
+                      <p className="mt-2 text-sm text-foreground">
+                        {selectedPrompt.toolId ? tools.find((tool) => tool.id === selectedPrompt.toolId)?.name ?? "No tool linked" : "No tool linked"}
+                      </p>
+                    </div>
                   </div>
+
                   <div className="flex flex-wrap gap-2">
                     {selectedPrompt.workflowId ? (
-                      <Button onClick={() => onOpenWorkflow(selectedPrompt.workflowId!)}>
-                        Open linked workflow
-                      </Button>
+                      <button
+                        onClick={() => onOpenWorkflow(selectedPrompt.workflowId!)}
+                        className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
+                      >
+                        <PlayCircle className="h-4 w-4" />
+                        Run prompt
+                      </button>
                     ) : null}
                     {selectedPrompt.toolId ? (
-                      <Button variant="outline" asChild>
-                        <a href={tools.find((tool) => tool.id === selectedPrompt.toolId)?.url} target="_blank" rel="noopener noreferrer">
-                          Launch linked tool
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      </Button>
+                      <a
+                        href={tools.find((tool) => tool.id === selectedPrompt.toolId)?.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 rounded-xl border border-border bg-secondary/25 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-secondary/45"
+                      >
+                        Launch tool
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
                     ) : null}
                   </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <EmptyState icon={MessageSquare} title="No prompt selected" description="Choose a prompt from the left to inspect its purpose, expected output, and linked workflow." />
-        )}
+                </DetailPanel>
+              ) : (
+                <EmptyState
+                  icon={MessageSquare}
+                  title="No prompt selected"
+                  description="Choose a prompt to preview the body, variables, and linked workflow."
+                />
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   )

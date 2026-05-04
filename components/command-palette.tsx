@@ -2,11 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
-  AppWindow,
   BookOpen,
+  Compass,
   GitBranch,
   Hash,
-  Layers3,
   LayoutDashboard,
   Library,
   Search,
@@ -24,10 +23,9 @@ interface CommandPaletteProps {
 
 const navCommands = [
   { id: "dashboard", label: "Go to Control Tower", icon: LayoutDashboard, shortcut: "G D" },
+  { id: "scenarios", label: "Go to Scenarios", icon: Compass, shortcut: "G S" },
   { id: "workflows", label: "Go to Workflow Library", icon: GitBranch, shortcut: "G W" },
   { id: "prompts", label: "Go to Prompt Library", icon: BookOpen, shortcut: "G P" },
-  { id: "contexts", label: "Go to Context Manager", icon: Layers3, shortcut: "G C" },
-  { id: "tools", label: "Go to Tool Registry", icon: AppWindow, shortcut: "G T" },
   { id: "reviews", label: "Go to Reviews", icon: Workflow, shortcut: "G R" },
   { id: "wiki", label: "Go to Wiki", icon: Library, shortcut: "G I" },
   { id: "settings", label: "Go to Settings", icon: Settings, shortcut: "G S" },

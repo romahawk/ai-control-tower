@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import Sidebar from "@/components/sidebar"
 import TopBar from "@/components/top-bar"
 import CommandPalette from "@/components/command-palette"
+import { SCENARIOS } from "@/data/scenarios"
 import { Dashboard } from "@/components/views/dashboard"
 import { PromptLibrary } from "@/components/views/prompt-library"
 import { ExecutionPanel } from "@/components/views/execution-panel"
@@ -12,6 +13,7 @@ import { ToolLauncher } from "@/components/views/tool-launcher"
 import { WorkflowLibrary } from "@/components/views/workflow-library"
 import { ReviewsView } from "@/components/views/reviews"
 import { Settings } from "@/components/views/settings"
+import { ScenariosView } from "@/components/views/scenarios-view"
 import { WikiView } from "@/components/views/wiki"
 import { useControlTowerState } from "@/hooks/use-control-tower-state"
 import { buildExecutionPack, getCurrentStepIndex } from "@/lib/control-tower"
@@ -57,6 +59,7 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
     saveSessionSummary,
     createContextRecord,
     createReview,
+    saveQuickCapture,
     downloadExport,
     importWorkspace,
     resetWorkspace,
@@ -84,6 +87,34 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
     onNavigate("workflows")
   }
 
+  const handleNewAction = (kind: "workflow" | "prompt" | "review" | "scenario" | "capture") => {
+    switch (kind) {
+      case "workflow": {
+        const defaultWorkflowId = selectedScenario.defaultWorkflowIds?.[0]
+        if (defaultWorkflowId) {
+          startWorkflowSession(defaultWorkflowId)
+        }
+        onNavigate("workflows")
+        return
+      }
+      case "prompt":
+        onNavigate("prompts")
+        return
+      case "review":
+        createReview("weekly", { scenarioId: selectedScenario.id })
+        onNavigate("reviews")
+        return
+      case "scenario":
+        onNavigate("scenarios")
+        return
+      case "capture":
+        onNavigate("dashboard")
+        return
+      default:
+        onNavigate("dashboard")
+    }
+  }
+
   const workflowSessions = useMemo(
     () => state.sessions.filter((session) => session.workflowId === selectedWorkflow.id),
     [selectedWorkflow.id, state.sessions]
@@ -100,14 +131,28 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
         return (
           <Dashboard
             selectedScenario={selectedScenario}
+            scenarioWorkflows={scenarioWorkflows}
+            sessions={state.sessions}
             activeSessions={activeSessions}
+            quickCaptures={state.quickCaptures}
             recentOutputs={recentOutputs}
             recentReviews={reviews}
             nextActions={nextActions}
             onNavigate={onNavigate}
             onOpenWorkflow={openWorkflow}
             onStartWorkflowSession={startWorkflowSession}
+            onQuickCapture={saveQuickCapture}
+          />
+        )
+      case "scenarios":
+        return (
+          <ScenariosView
+            selectedScenario={selectedScenario}
+            sessions={state.sessions}
+            recentOutputs={recentOutputs}
             onSelectScenario={selectScenario}
+            onOpenWorkflows={() => onNavigate("workflows")}
+            onEditScenario={() => onNavigate("settings")}
           />
         )
       case "prompts":
@@ -116,7 +161,9 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             selectedScenario={selectedScenario}
             prompts={scenarioPrompts}
             tools={scenarioTools}
+            quickCaptures={state.quickCaptures}
             onOpenWorkflow={openWorkflow}
+            onSaveQuickCapture={saveQuickCapture}
           />
         )
       case "execution":
@@ -144,6 +191,7 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             selectedScenario={selectedScenario}
             workflows={scenarioWorkflows}
             selectedWorkflow={selectedWorkflow}
+            allSessions={state.sessions}
             activeSession={activeSession}
             workflowSessions={workflowSessions}
             currentStepIndex={currentStepIndex}
@@ -206,6 +254,10 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
         <TopBar
           onOpenCommand={() => setCommandOpen(true)}
           currentView={currentView}
+          selectedScenario={selectedScenario}
+          scenarios={SCENARIOS}
+          onSelectScenario={selectScenario}
+          onNewAction={handleNewAction}
         />
         <main className="flex-1 overflow-auto">{renderView()}</main>
       </div>

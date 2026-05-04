@@ -8,6 +8,8 @@ import type {
   ContextRecord,
   ControlTowerState,
   OutputRecord,
+  QuickCaptureRecord,
+  QuickCaptureType,
   ReviewRecord,
   ReviewType,
   Scenario,
@@ -34,6 +36,7 @@ export function createInitialControlTowerState(): ControlTowerState {
     sessions: [],
     contexts: CONTEXT_RECORDS,
     reviews: [],
+    quickCaptures: [],
   }
 }
 
@@ -55,6 +58,7 @@ export function sanitizeState(input: ControlTowerState): ControlTowerState {
     sessions: input.sessions ?? [],
     contexts: input.contexts?.length ? input.contexts : fallback.contexts,
     reviews: input.reviews ?? [],
+    quickCaptures: input.quickCaptures ?? [],
   }
 }
 
@@ -443,6 +447,33 @@ export function buildReviewRecord(
   }
 }
 
+export function createQuickCapture(
+  state: ControlTowerState,
+  input: {
+    type: QuickCaptureType
+    content: string
+    scenarioId?: string
+    workflowId?: string
+  }
+) {
+  const timestamp = new Date().toISOString()
+  const record: QuickCaptureRecord = {
+    id: makeId("capture"),
+    type: input.type,
+    content: input.content,
+    status: "inbox",
+    scenarioId: input.scenarioId,
+    workflowId: input.workflowId,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+
+  return {
+    ...state,
+    quickCaptures: [record, ...state.quickCaptures],
+  }
+}
+
 export function getDeterministicNextActions(state: ControlTowerState, scenarioId?: string) {
   const relevantSessions = state.sessions.filter((session) => !scenarioId || session.scenarioId === scenarioId)
   const outputs = relevantSessions.flatMap((session) => session.outputs)
@@ -539,4 +570,10 @@ export function getScenarioSummary(scenario: Scenario, state: ControlTowerState)
     blockedSessions,
     nextActions: getDeterministicNextActions(state, scenario.id),
   }
+}
+
+export function getLatestSessionForWorkflow(state: ControlTowerState, workflowId: string) {
+  return state.sessions
+    .filter((session) => session.workflowId === workflowId)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0]
 }

@@ -17,16 +17,23 @@ import {
   PauseCircle,
   PlayCircle,
   Search,
+  Sparkles,
 } from "lucide-react"
+import { WorkflowBoardPreview } from "@/components/views/dashboard-workflow-board"
 import { EmptyState } from "@/components/ui/empty-state"
 import { InfoCallout } from "@/components/ui/info-callout"
+import { PageHeader } from "@/components/ui/page-header"
+import { ScenarioBadge } from "@/components/ui/scenario-badge"
+import { SegmentedTabs } from "@/components/ui/segmented-tabs"
 import { SectionHeader } from "@/components/ui/section-header"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
+import { Tabs } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { getLatestSessionForWorkflow } from "@/lib/control-tower"
 import { cn } from "@/lib/utils"
 import { getContextIcon, getScenarioIcon, getStatusMeta } from "@/lib/ui-meta"
 import type { ContextRecord, Prompt, Scenario, Tool, Workflow, WorkflowSession } from "@/types"
@@ -35,6 +42,7 @@ interface WorkflowLibraryProps {
   selectedScenario: Scenario
   workflows: Workflow[]
   selectedWorkflow: Workflow
+  allSessions: WorkflowSession[]
   activeSession: WorkflowSession | undefined
   workflowSessions: WorkflowSession[]
   currentStepIndex: number
@@ -65,10 +73,32 @@ interface WorkflowLibraryProps {
   getCompletedStepsCount: (session: WorkflowSession) => number
 }
 
+type WorkflowFilter = "all" | "inbox" | "clarify" | "active" | "waiting" | "done" | "blocked"
+
+const workflowFilters: Array<{ value: WorkflowFilter; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "inbox", label: "Inbox" },
+  { value: "clarify", label: "Clarify" },
+  { value: "active", label: "Active" },
+  { value: "waiting", label: "Waiting" },
+  { value: "done", label: "Done" },
+  { value: "blocked", label: "Blocked" },
+]
+
+function getBoardStatus(workflow: Workflow, session?: WorkflowSession) {
+  if (session?.status === "blocked") return "blocked" as const
+  if (session?.status === "active") return "active" as const
+  if (session?.status === "paused") return "waiting" as const
+  if (session?.status === "completed") return "done" as const
+  if (workflow.status === "draft") return "clarify" as const
+  return "inbox" as const
+}
+
 export function WorkflowLibrary({
   selectedScenario,
   workflows,
   selectedWorkflow,
+  allSessions,
   activeSession,
   workflowSessions,
   currentStepIndex,
@@ -92,6 +122,7 @@ export function WorkflowLibrary({
   getCompletedStepsCount,
 }: WorkflowLibraryProps) {
   const [query, setQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState<WorkflowFilter>("all")
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null)
   const [copiedPack, setCopiedPack] = useState(false)
   const [outputTitle, setOutputTitle] = useState("")
@@ -104,6 +135,10 @@ export function WorkflowLibrary({
   const filteredWorkflows = useMemo(() => {
     const search = query.trim().toLowerCase()
     return workflows.filter((workflow) => {
+      const latestSession = getLatestSessionForWorkflow({ sessions: allSessions } as never, workflow.id)
+      const boardStatus = getBoardStatus(workflow, latestSession)
+      const matchesStatus = statusFilter === "all" || boardStatus === statusFilter
+      if (!matchesStatus) return false
       if (!search) return true
       return (
         workflow.title.toLowerCase().includes(search) ||
@@ -111,7 +146,35 @@ export function WorkflowLibrary({
         workflow.output.toLowerCase().includes(search)
       )
     })
-  }, [query, workflows])
+  }, [allSessions, query, statusFilter, workflows])
+
+  const boardColumns = useMemo(() => {
+    const columns: Array<{ id: "inbox" | "clarify" | "active" | "waiting" | "done" | "blocked"; title: string }> = [
+      { id: "inbox", title: "Inbox" },
+      { id: "clarify", title: "Clarify" },
+      { id: "active", title: "Active" },
+      { id: "waiting", title: "Waiting" },
+      { id: "done", title: "Done" },
+      { id: "blocked", title: "Blocked" },
+    ]
+
+    const items = filteredWorkflows.map((workflow) => {
+      const latestSession = getLatestSessionForWorkflow({ sessions: allSessions } as never, workflow.id)
+      return {
+        id: workflow.id,
+        title: workflow.title,
+        scenario: selectedScenario,
+        status: getBoardStatus(workflow, latestSession),
+        updatedAt: latestSession?.updatedAt ?? new Date().toISOString(),
+        workflow,
+      }
+    })
+
+    return columns.map((column) => ({
+      ...column,
+      items: items.filter((item) => item.status === column.id),
+    }))
+  }, [allSessions, filteredWorkflows, selectedScenario])
 
   useEffect(() => {
     if (!filteredWorkflows.some((workflow) => workflow.id === selectedWorkflow.id) && filteredWorkflows[0]) {
@@ -171,24 +234,53 @@ export function WorkflowLibrary({
   const ScenarioIcon = getScenarioIcon(selectedScenario.category)
 
   return (
-    <div className="h-full overflow-hidden p-4">
-      <div className="mx-auto grid h-full max-w-[1320px] gap-4 xl:grid-cols-[320px_1fr]">
+    <div className="h-full overflow-auto px-4 py-4 md:px-6">
+      <div className="mx-auto max-w-[1360px] space-y-4">
+        <PageHeader
+          title="Workflows"
+          description="Move work from capture to completion."
+          icon={GitBranch}
+          actionLabel="New workflow"
+          actionIcon={Sparkles}
+          onAction={() => onStartWorkflowSession(selectedWorkflow.id)}
+        />
+
+        <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as WorkflowFilter)} className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <SegmentedTabs tabs={workflowFilters} />
+            <div className="min-w-[240px] flex-1 md:max-w-sm">
+              <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search workflows..." />
+            </div>
+          </div>
+        </Tabs>
+
+        <Card className="surface-panel rounded-3xl border-border/60 py-0">
+          <CardContent className="p-5">
+            <SectionHeader
+              icon={GitBranch}
+              title="Execution board"
+              description="Scan the board first, then drop into one selected workflow."
+              action={<ScenarioBadge scenario={selectedScenario} />}
+            />
+            <div className="mt-4">
+              <WorkflowBoardPreview columns={boardColumns} onOpenWorkflow={onSelectWorkflow} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-4 xl:grid-cols-[320px_1fr]">
         <aside className="surface-panel flex min-h-0 flex-col overflow-hidden rounded-3xl">
           <div className="border-b border-border p-4">
             <SectionHeader
-              icon={GitBranch}
-              title="Workflow Library"
-              description="Choose a workflow, then focus on one visible step and one output at a time."
+              icon={PlayCircle}
+              title="Selected lane"
+              description="Compact cards keep the board scannable. Select one workflow to execute."
             />
-            <div className="relative mt-4">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search workflows..." className="pl-9" />
-            </div>
           </div>
 
           <div className="min-h-0 space-y-2 overflow-y-auto p-3">
             {filteredWorkflows.map((workflow) => {
-              const workflowSession = workflowSessions.find((session) => session.workflowId === workflow.id)
+              const workflowSession = getLatestSessionForWorkflow({ sessions: allSessions } as never, workflow.id)
               const isSelected = workflow.id === selectedWorkflow.id
               return (
                 <button
@@ -204,13 +296,15 @@ export function WorkflowLibrary({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-foreground">{workflow.title}</p>
-                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{workflow.goal}</p>
+                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{workflow.steps[0]?.title ?? workflow.goal}</p>
                     </div>
-                    <StatusBadge status={workflowSession?.status ?? workflow.status} />
+                    <StatusBadge status={getBoardStatus(workflow, workflowSession)} />
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <span className="rounded-full border border-border bg-secondary/30 px-2.5 py-1 text-[11px] text-muted-foreground">{workflow.steps.length} steps</span>
-                    <span className="rounded-full border border-border bg-secondary/30 px-2.5 py-1 text-[11px] text-muted-foreground">{workflow.frequency}</span>
+                    <span className="rounded-full border border-border bg-secondary/30 px-2.5 py-1 text-[11px] text-muted-foreground">
+                      {workflowSession ? new Date(workflowSession.updatedAt).toLocaleDateString() : workflow.frequency}
+                    </span>
                   </div>
                 </button>
               )
@@ -605,6 +699,7 @@ export function WorkflowLibrary({
             ) : null}
           </div>
         </div>
+      </div>
       </div>
     </div>
   )

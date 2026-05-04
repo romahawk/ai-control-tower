@@ -3,12 +3,11 @@
 import { cn } from "@/lib/utils"
 import type { ViewType } from "@/types/navigation"
 import {
-  AppWindow,
   BookOpen,
   ChevronRight,
   Command,
+  Compass,
   GitBranch,
-  Layers3,
   LayoutDashboard,
   Library,
   Settings,
@@ -24,10 +23,9 @@ interface SidebarProps {
 
 const navItems: { id: ViewType; label: string; icon: React.ElementType; badge?: string }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "scenarios", label: "Scenarios", icon: Compass },
   { id: "workflows", label: "Workflows", icon: GitBranch, badge: "Core" },
   { id: "prompts", label: "Prompts", icon: BookOpen },
-  { id: "contexts", label: "Context", icon: Layers3 },
-  { id: "tools", label: "Tools", icon: AppWindow },
   { id: "reviews", label: "Reviews", icon: Workflow },
   { id: "wiki", label: "Wiki", icon: Library, badge: "Guide" },
 ]
