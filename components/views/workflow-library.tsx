@@ -31,6 +31,7 @@ import { getLatestSessionForWorkflow } from "@/lib/control-tower"
 import { cn } from "@/lib/utils"
 import { getContextIcon, getStatusMeta } from "@/lib/ui-meta"
 import type { ContextRecord, Project, Prompt, Scenario, Tool, Workflow, WorkflowSession } from "@/types"
+import type { GoalRecord, WorkflowHealth } from "@/types"
 
 interface WorkflowLibraryProps {
   selectedScenario: Scenario
@@ -45,6 +46,8 @@ interface WorkflowLibraryProps {
   stepPrompts: Prompt[]
   stepTools: Tool[]
   stepContexts: ContextRecord[]
+  goals: GoalRecord[]
+  getWorkflowHealth: (workflowId: string) => WorkflowHealth | undefined
   executionPack: string
   onSelectWorkflow: (workflowId: string) => void
   onOpenRunner: () => void
@@ -128,6 +131,8 @@ export function WorkflowLibrary({
   stepPrompts,
   stepTools,
   stepContexts,
+  goals,
+  getWorkflowHealth,
   executionPack,
   onSelectWorkflow,
   onOpenRunner,
@@ -213,6 +218,8 @@ export function WorkflowLibrary({
 
   const selectedWorkflowSession = activeSession?.workflowId === selectedWorkflow.id ? activeSession : undefined
   const activeOrLatestSession = selectedWorkflowSession ?? latestWorkflowSession
+  const workflowHealth = getWorkflowHealth(selectedWorkflow.id)
+  const linkedGoals = goals.filter((goal) => goal.workflowIds.includes(selectedWorkflow.id))
   const selectedStep = selectedWorkflowSession
     ? selectedWorkflow.steps.find((step) => step.id === selectedWorkflowSession.currentStepId) ?? selectedWorkflow.steps[0]
     : selectedWorkflow.steps.find((step) => step.id === previewStepId) ?? selectedWorkflow.steps[0]
@@ -356,6 +363,7 @@ export function WorkflowLibrary({
                   <div className="space-y-2">
                     {group.items.slice(0, statusFilter === "all" ? undefined : 6).map((workflow) => {
                       const workflowSession = getLatestSessionForWorkflow({ sessions: allSessions } as never, workflow.id)
+                      const health = getWorkflowHealth(workflow.id)
                       const isSelected = workflow.id === selectedWorkflow.id
                       const workflowProject = scenarioProjects.find((project) => project.workflowIds.includes(workflow.id))
                       const workflowCompletedSteps = workflowSession ? getCompletedStepsCount(workflowSession) : 0
@@ -377,6 +385,7 @@ export function WorkflowLibrary({
                           <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
                             <span>{workflowCompletedSteps}/{workflow.steps.length} steps</span>
                             {workflowProject ? <span>{workflowProject.name}</span> : <span>{selectedScenario.name}</span>}
+                            {health ? <StatusBadge status={health.status} /> : null}
                           </div>
                         </button>
                       )
@@ -428,6 +437,7 @@ export function WorkflowLibrary({
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <h2 className="text-2xl font-semibold tracking-tight text-foreground">{selectedWorkflow.title}</h2>
                           <StatusBadge status={statusLabel} />
+                          {workflowHealth ? <StatusBadge status={workflowHealth.status} /> : null}
                           <span className="rounded-full border border-border/60 bg-secondary/20 px-2.5 py-1 text-[11px] text-muted-foreground">
                             {selectedWorkflow.status}
                           </span>
@@ -456,7 +466,7 @@ export function WorkflowLibrary({
                       </div>
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-4">
+                      <div className="grid gap-3 md:grid-cols-4">
                       <div className="rounded-2xl border border-border/60 bg-secondary/15 px-3 py-3">
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Current state</p>
                         <p className="mt-2 text-sm text-foreground">{selectedWorkflowSession ? selectedWorkflowSession.status : "Ready to run"}</p>
@@ -471,11 +481,24 @@ export function WorkflowLibrary({
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Expected output</p>
                         <p className="mt-2 line-clamp-2 text-sm text-foreground">{expectedOutput}</p>
                       </div>
-                      <div className="rounded-2xl border border-border/60 bg-secondary/15 px-3 py-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Success metric</p>
-                        <p className="mt-2 line-clamp-2 text-sm text-foreground">{selectedWorkflow.successMetric}</p>
+                        <div className="rounded-2xl border border-border/60 bg-secondary/15 px-3 py-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Success metric</p>
+                          <p className="mt-2 line-clamp-2 text-sm text-foreground">{selectedWorkflow.successMetric}</p>
+                        </div>
                       </div>
-                    </div>
+
+                    {workflowHealth ? (
+                      <div className="rounded-2xl border border-border/60 bg-secondary/10 px-3 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-foreground">Workflow health</p>
+                          <StatusBadge status={workflowHealth.status} />
+                          <span className="rounded-full border border-border/60 bg-card/50 px-2 py-0.5 text-[10px] text-muted-foreground">
+                            {workflowHealth.linkedGoalCount} goals linked
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm text-muted-foreground">{workflowHealth.reason}</p>
+                      </div>
+                    ) : null}
 
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
                       <TabsList className="h-auto rounded-2xl border border-border/60 bg-secondary/15 p-1">
@@ -575,6 +598,31 @@ export function WorkflowLibrary({
                                 </div>
 
                                 <div className="space-y-3">
+                                  <div className="rounded-2xl border border-border/60 bg-card/55 p-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="text-sm font-semibold text-foreground">Linked goals</p>
+                                      <span className="text-[11px] text-muted-foreground">{linkedGoals.length}</span>
+                                    </div>
+                                    <div className="mt-3 space-y-2">
+                                      {linkedGoals.length > 0 ? (
+                                        linkedGoals.slice(0, 2).map((goal) => (
+                                          <div key={goal.id} className="rounded-xl border border-border/60 bg-secondary/10 p-3">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                              <p className="text-sm font-semibold text-foreground">{goal.title}</p>
+                                              <StatusBadge status={goal.status} />
+                                            </div>
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                              {goal.currentValue}/{goal.targetValue} {goal.unit}
+                                              {goal.dueDate ? ` · due ${new Date(goal.dueDate).toLocaleDateString()}` : ""}
+                                            </p>
+                                          </div>
+                                        ))
+                                      ) : (
+                                        <CompactEmpty title="No linked goals" description="Link this workflow to a project goal so its health and progress stay aligned." />
+                                      )}
+                                    </div>
+                                  </div>
+
                                   <div className="rounded-2xl border border-border/60 bg-card/55 p-3">
                                     <div className="flex items-center justify-between gap-2">
                                       <p className="text-sm font-semibold text-foreground">Session</p>

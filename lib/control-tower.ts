@@ -1,4 +1,5 @@
 import { CONTEXT_RECORDS } from "@/data/contexts"
+import { GOALS } from "@/data/goals"
 import { PROJECTS } from "@/data/projects"
 import { PROMPTS } from "@/data/prompts"
 import { SCENARIOS } from "@/data/scenarios"
@@ -8,6 +9,8 @@ import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "@/lib/s
 import type {
   ContextRecord,
   ControlTowerState,
+  GoalRecord,
+  GoalStatus,
   OutputRecord,
   Project,
   ProjectStatus,
@@ -19,6 +22,7 @@ import type {
   StepExecution,
   StepExecutionStatus,
   Tool,
+  WorkflowHealth,
   Workflow,
   WorkflowSession,
   WorkflowStep,
@@ -38,6 +42,7 @@ export function createInitialControlTowerState(): ControlTowerState {
     selectedProjectId: PROJECTS[0]?.id,
     activeSessionId: undefined,
     projects: PROJECTS,
+    goals: GOALS,
     sessions: [],
     contexts: CONTEXT_RECORDS,
     reviews: [],
@@ -65,6 +70,7 @@ export function sanitizeState(input: ControlTowerState): ControlTowerState {
       ? input.activeSessionId
       : fallback.activeSessionId,
     projects: input.projects?.length ? input.projects : fallback.projects,
+    goals: input.goals?.length ? input.goals : fallback.goals,
     sessions: input.sessions ?? [],
     contexts: input.contexts?.length ? input.contexts : fallback.contexts,
     reviews: input.reviews ?? [],
@@ -112,18 +118,20 @@ export function getContextsForStep(
     .filter((project) => project.workflowIds.includes(workflow.id))
     .map((project) => project.id)
 
-  return state.contexts.filter((context) => {
-    if (step?.id && context.stepId === step.id) {
-      return true
-    }
-    if (context.projectId && relatedProjectIds.includes(context.projectId)) {
-      return true
-    }
-    if (context.workflowId === workflow.id) {
-      return true
-    }
-    return context.scenarioId === workflow.scenarioId
-  })
+  return state.contexts
+    .filter((context) => {
+      if (step?.id && context.stepId === step.id) {
+        return true
+      }
+      if (context.projectId && relatedProjectIds.includes(context.projectId)) {
+        return true
+      }
+      if (context.workflowId === workflow.id) {
+        return true
+      }
+      return context.scenarioId === workflow.scenarioId
+    })
+    .sort((left, right) => getContextPriority(right, workflow, step, relatedProjectIds) - getContextPriority(left, workflow, step, relatedProjectIds))
 }
 
 export function getProjectContextRecords(state: ControlTowerState, project: Project) {
@@ -138,6 +146,105 @@ export function getProjectContextRecords(state: ControlTowerState, project: Proj
       return context.scenarioId === project.scenarioId
     })
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+export function getGoalsForProject(state: ControlTowerState, projectId?: string) {
+  return state.goals
+    .filter((goal) => !projectId || goal.projectId === projectId)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+export function getGoalsForWorkflow(state: ControlTowerState, workflowId: string) {
+  return state.goals
+    .filter((goal) => goal.workflowIds.includes(workflowId))
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+export function upsertGoal(
+  goals: GoalRecord[],
+  goal: Omit<GoalRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }
+) {
+  const timestamp = new Date().toISOString()
+
+  if (goal.id) {
+    return goals.map((existingGoal) =>
+      existingGoal.id === goal.id
+        ? {
+            ...existingGoal,
+            ...goal,
+            updatedAt: timestamp,
+            completedAt: goal.status === "completed" ? existingGoal.completedAt ?? timestamp : undefined,
+          }
+        : existingGoal
+    )
+  }
+
+  return [
+    {
+      ...goal,
+      id: makeId("goal"),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      completedAt: goal.status === "completed" ? timestamp : undefined,
+    },
+    ...goals,
+  ]
+}
+
+export function setGoalStatus(goals: GoalRecord[], goalId: string, status: GoalStatus) {
+  const timestamp = new Date().toISOString()
+  return goals.map((goal) =>
+    goal.id === goalId
+      ? {
+          ...goal,
+          status,
+          updatedAt: timestamp,
+          completedAt: status === "completed" ? goal.completedAt ?? timestamp : undefined,
+        }
+      : goal
+  )
+}
+
+function getContextPriority(
+  context: ContextRecord,
+  workflow: Workflow,
+  step?: WorkflowStep,
+  relatedProjectIds: string[] = []
+) {
+  if (step?.id && context.stepId === step.id) {
+    return 4
+  }
+  if (context.projectId && relatedProjectIds.includes(context.projectId)) {
+    return 3
+  }
+  if (context.workflowId === workflow.id) {
+    return 2
+  }
+  if (context.scenarioId === workflow.scenarioId) {
+    return 1
+  }
+  return 0
+}
+
+export function getContextScopeLabel(
+  context: ContextRecord,
+  workflow: Workflow,
+  step?: WorkflowStep,
+  relatedProjectIds: string[] = []
+) {
+  if (step?.id && context.stepId === step.id) {
+    return "step"
+  }
+  if (context.projectId && relatedProjectIds.includes(context.projectId)) {
+    return "project"
+  }
+  if (context.workflowId === workflow.id) {
+    return "workflow"
+  }
+  if (context.scenarioId === workflow.scenarioId) {
+    return "scenario"
+  }
+  return "general"
 }
 
 export function getPromptsForStep(workflow: Workflow, step?: WorkflowStep) {
@@ -498,6 +605,15 @@ export function buildExecutionPack(
   const tools = getToolsForStep(step)
   const prompts = getPromptsForStep(workflow, step)
   const contexts = getContextsForStep(state, workflow, step)
+  const relatedProjectIds = state.projects
+    .filter((project) => project.workflowIds.includes(workflow.id))
+    .map((project) => project.id)
+  const groupedContexts = ["step", "project", "workflow", "scenario"]
+    .map((scope) => ({
+      scope,
+      items: contexts.filter((context) => getContextScopeLabel(context, workflow, step, relatedProjectIds) === scope),
+    }))
+    .filter((group) => group.items.length > 0)
 
   return [
     `Scenario: ${getScenarioById(workflow.scenarioId)?.name ?? workflow.scenarioId}`,
@@ -506,7 +622,18 @@ export function buildExecutionPack(
     `Expected output: ${step.expectedOutput}`,
     `Recommended tools: ${tools.map((tool) => tool.name).join(", ") || "None"}`,
     `Relevant prompts:\n${prompts.map((prompt) => `- ${prompt.title}\n${prompt.content}`).join("\n\n") || "- None"}`,
-    `Relevant context:\n${contexts.map((context) => `- ${context.title}: ${context.content}`).join("\n") || "- None"}`,
+    `Relevant context:\n${
+      groupedContexts.length > 0
+        ? groupedContexts
+            .map(
+              (group) =>
+                `${group.scope.toUpperCase()}:\n${group.items
+                  .map((context) => `- ${context.title}: ${context.content}`)
+                  .join("\n")}`
+            )
+            .join("\n\n")
+        : "- None"
+    }`,
   ].join("\n\n")
 }
 
@@ -722,4 +849,78 @@ export function getLatestSessionForWorkflow(state: ControlTowerState, workflowId
   return state.sessions
     .filter((session) => session.workflowId === workflowId)
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0]
+}
+
+export function getWorkflowHealth(state: ControlTowerState, workflow: Workflow): WorkflowHealth {
+  const latestSession = getLatestSessionForWorkflow(state, workflow.id)
+  const linkedGoals = getGoalsForWorkflow(state, workflow.id)
+  const activeGoals = linkedGoals.filter((goal) => goal.status === "active")
+  const latestOutput = state.sessions
+    .filter((session) => session.workflowId === workflow.id)
+    .flatMap((session) => session.outputs)
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0]
+
+  const now = Date.now()
+  const updatedAt = latestSession?.updatedAt ? new Date(latestSession.updatedAt).getTime() : 0
+  const stale = updatedAt > 0 ? now - updatedAt > 1000 * 60 * 60 * 24 * 5 : workflow.status !== "draft"
+  const blocked = latestSession?.status === "blocked"
+  const misaligned = linkedGoals.length === 0 && workflow.status !== "draft"
+
+  if (blocked) {
+    return {
+      status: "blocked",
+      reason: latestSession?.blockerNote || "This workflow is blocked and needs intervention.",
+      linkedGoalCount: linkedGoals.length,
+      activeGoalCount: activeGoals.length,
+      blocked: true,
+      stale,
+      misaligned,
+    }
+  }
+
+  if (misaligned) {
+    return {
+      status: "misaligned",
+      reason: "This workflow is moving without a linked goal.",
+      linkedGoalCount: linkedGoals.length,
+      activeGoalCount: activeGoals.length,
+      blocked: false,
+      stale,
+      misaligned: true,
+    }
+  }
+
+  if (stale) {
+    return {
+      status: "stale",
+      reason: latestSession ? "The workflow has not been updated recently." : "The workflow has no recent execution signal.",
+      linkedGoalCount: linkedGoals.length,
+      activeGoalCount: activeGoals.length,
+      blocked: false,
+      stale: true,
+      misaligned,
+    }
+  }
+
+  if (!latestOutput && latestSession?.status === "active") {
+    return {
+      status: "at-risk",
+      reason: "Active execution exists, but no visible output has been captured yet.",
+      linkedGoalCount: linkedGoals.length,
+      activeGoalCount: activeGoals.length,
+      blocked: false,
+      stale: false,
+      misaligned,
+    }
+  }
+
+  return {
+    status: "healthy",
+    reason: activeGoals.length > 0 ? "Execution is linked to active goals and showing movement." : "Workflow activity is healthy.",
+    linkedGoalCount: linkedGoals.length,
+    activeGoalCount: activeGoals.length,
+    blocked: false,
+    stale: false,
+    misaligned,
+  }
 }

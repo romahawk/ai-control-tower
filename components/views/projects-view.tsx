@@ -13,6 +13,7 @@ import {
   PlayCircle,
   Plus,
   Sparkles,
+  Target,
   Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -39,6 +40,8 @@ import { WORKFLOWS } from "@/data/workflows"
 import { getContextIcon } from "@/lib/ui-meta"
 import type {
   ContextRecord,
+  GoalRecord,
+  GoalStatus,
   OutputRecord,
   PriorityLevel,
   Project,
@@ -55,6 +58,7 @@ interface ProjectsViewProps {
   sessions: WorkflowSession[]
   recentOutputs: OutputRecord[]
   contexts: ContextRecord[]
+  goals: GoalRecord[]
   onSelectProject: (projectId: string) => void
   onOpenWorkflows: () => void
   onOpenScenario: (scenarioId: string) => void
@@ -70,6 +74,20 @@ interface ProjectsViewProps {
     status?: ProjectStatus
   }) => void
   onUpdateProjectStatus: (projectId: string, status: ProjectStatus) => void
+  onSaveGoal: (params: {
+    id?: string
+    title: string
+    description: string
+    status: GoalStatus
+    scenarioId: string
+    projectId: string
+    workflowIds: string[]
+    targetValue: number
+    currentValue: number
+    unit: string
+    dueDate?: string
+  }) => void
+  onUpdateGoalStatus: (goalId: string, status: GoalStatus) => void
   onSaveContext: (
     contextRecord: Omit<ContextRecord, "id" | "createdAt" | "updatedAt"> & {
       id?: string
@@ -80,7 +98,7 @@ interface ProjectsViewProps {
 
 type ProjectTab = "all" | "active" | "paused" | "completed" | "archived"
 type EditorMode = "view" | "create" | "edit"
-type ProjectPanelTab = "overview" | "workflows" | "outputs" | "sessions" | "context"
+type ProjectPanelTab = "overview" | "goals" | "workflows" | "outputs" | "sessions" | "context"
 
 const projectTabs: Array<{ value: ProjectTab; label: string }> = [
   { value: "all", label: "All" },
@@ -92,6 +110,7 @@ const projectTabs: Array<{ value: ProjectTab; label: string }> = [
 
 const panelTabs: Array<{ value: ProjectPanelTab; label: string }> = [
   { value: "overview", label: "Overview" },
+  { value: "goals", label: "Goals" },
   { value: "workflows", label: "Workflows" },
   { value: "outputs", label: "Outputs" },
   { value: "sessions", label: "Sessions" },
@@ -110,6 +129,18 @@ interface ProjectDraft {
   nextAction: string
   ownerNote: string
   status: ProjectStatus
+}
+
+interface GoalDraft {
+  id?: string
+  title: string
+  description: string
+  status: GoalStatus
+  workflowIds: string[]
+  targetValue: string
+  currentValue: string
+  unit: string
+  dueDate: string
 }
 
 function makeDraft(project?: Project, fallbackScenarioId?: string): ProjectDraft {
@@ -131,6 +162,20 @@ function truncate(text: string, max = 88) {
   return `${text.slice(0, max - 1)}…`
 }
 
+function makeGoalDraft(goal?: GoalRecord): GoalDraft {
+  return {
+    id: goal?.id,
+    title: goal?.title ?? "",
+    description: goal?.description ?? "",
+    status: goal?.status ?? "active",
+    workflowIds: goal?.workflowIds ?? [],
+    targetValue: goal ? String(goal.targetValue) : "",
+    currentValue: goal ? String(goal.currentValue) : "",
+    unit: goal?.unit ?? "outputs",
+    dueDate: goal?.dueDate ?? "",
+  }
+}
+
 export function ProjectsView({
   selectedScenario,
   selectedProject,
@@ -138,11 +183,14 @@ export function ProjectsView({
   sessions,
   recentOutputs,
   contexts,
+  goals,
   onSelectProject,
   onOpenWorkflows,
   onOpenScenario,
   onSaveProject,
   onUpdateProjectStatus,
+  onSaveGoal,
+  onUpdateGoalStatus,
   onSaveContext,
   onDeleteContext,
 }: ProjectsViewProps) {
@@ -157,6 +205,7 @@ export function ProjectsView({
   const [contextType, setContextType] = useState<ContextRecord["type"]>("project")
   const [editingContextId, setEditingContextId] = useState<string | undefined>()
   const [contextQuery, setContextQuery] = useState("")
+  const [goalDraft, setGoalDraft] = useState<GoalDraft>(makeGoalDraft())
 
   useEffect(() => {
     if (mode !== "view") return
@@ -209,6 +258,11 @@ export function ProjectsView({
   const panelWorkflows = panelProject ? getProjectWorkflows(panelProject) : []
   const panelSessions = panelProject ? getProjectSessions(panelProject) : []
   const panelOutputs = panelProject ? getProjectOutputs(panelProject) : []
+  const panelGoals = panelProject
+    ? goals
+        .filter((goal) => goal.projectId === panelProject.id)
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    : []
   const panelContexts = panelProject
     ? contexts
         .filter((context) => {
@@ -236,6 +290,7 @@ export function ProjectsView({
   const latestWorkflow = panelWorkflows[0]
   const latestOutput = panelOutputs[0]
   const latestSession = panelSessions[0]
+  const activeGoals = panelGoals.filter((goal) => goal.status === "active")
   const expectedOutput = latestWorkflow?.output ?? "Visible project output"
   const reviewSignal = latestSession
     ? `Last activity ${new Date(latestSession.updatedAt).toLocaleDateString()}`
@@ -335,6 +390,34 @@ export function ProjectsView({
     setContextContent("")
     setContextType("project")
     setEditingContextId(undefined)
+  }
+
+  const saveGoal = () => {
+    if (
+      !panelProject ||
+      !goalDraft.title.trim() ||
+      !goalDraft.description.trim() ||
+      !goalDraft.targetValue.trim() ||
+      !goalDraft.currentValue.trim()
+    ) {
+      return
+    }
+
+    onSaveGoal({
+      id: goalDraft.id,
+      title: goalDraft.title.trim(),
+      description: goalDraft.description.trim(),
+      status: goalDraft.status,
+      scenarioId: panelProject.scenarioId,
+      projectId: panelProject.id,
+      workflowIds: goalDraft.workflowIds,
+      targetValue: Number(goalDraft.targetValue),
+      currentValue: Number(goalDraft.currentValue),
+      unit: goalDraft.unit.trim() || "outputs",
+      dueDate: goalDraft.dueDate || undefined,
+    })
+
+    setGoalDraft(makeGoalDraft())
   }
 
   const lifecycleActions = (project: Project) => {
@@ -667,6 +750,59 @@ export function ProjectsView({
                               <Card className="rounded-3xl border-border/60 bg-card/60">
                                 <CardContent className="p-4">
                                   <SectionHeader
+                                    icon={Target}
+                                    title="Active goals"
+                                    description="What this project is trying to change, not just what it is doing."
+                                    action={
+                                      panelGoals.length > 0 ? (
+                                        <button
+                                          onClick={() => setPanelTab("goals")}
+                                          className="text-xs font-medium text-primary transition hover:opacity-80"
+                                        >
+                                          Open goals
+                                        </button>
+                                      ) : undefined
+                                    }
+                                  />
+                                  <div className="mt-4 space-y-3">
+                                    {activeGoals.length > 0 ? (
+                                      activeGoals.slice(0, 2).map((goal) => {
+                                        const progressPercent = goal.targetValue > 0
+                                          ? Math.min((goal.currentValue / goal.targetValue) * 100, 100)
+                                          : 0
+                                        return (
+                                          <div key={goal.id} className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                                            <div className="flex items-start justify-between gap-2">
+                                              <div>
+                                                <p className="text-sm font-semibold text-foreground">{goal.title}</p>
+                                                <p className="mt-1 text-xs text-muted-foreground">{goal.description}</p>
+                                              </div>
+                                              <StatusBadge status={goal.status} />
+                                            </div>
+                                            <div className="mt-3 h-2 overflow-hidden rounded-full bg-secondary/40">
+                                              <div className="h-full rounded-full bg-primary" style={{ width: `${progressPercent}%` }} />
+                                            </div>
+                                            <p className="mt-2 text-[11px] text-muted-foreground">
+                                              {goal.currentValue}/{goal.targetValue} {goal.unit}
+                                              {goal.dueDate ? ` · due ${new Date(goal.dueDate).toLocaleDateString()}` : ""}
+                                            </p>
+                                          </div>
+                                        )
+                                      })
+                                    ) : (
+                                      <EmptyState
+                                        icon={Target}
+                                        title="No active goals yet"
+                                        description="Add a goal so the project has a measurable direction."
+                                      />
+                                    )}
+                                  </div>
+                                </CardContent>
+                              </Card>
+
+                              <Card className="rounded-3xl border-border/60 bg-card/60">
+                                <CardContent className="p-4">
+                                  <SectionHeader
                                     icon={Sparkles}
                                     title="Latest output"
                                     description="Visible progress from this project."
@@ -736,6 +872,163 @@ export function ProjectsView({
                               </Card>
                             </div>
                           </div>
+                        </TabsContent>
+
+                        <TabsContent value="goals">
+                          <Card className="rounded-3xl border-border/60 bg-card/60">
+                            <CardContent className="space-y-4 p-4">
+                              <SectionHeader
+                                icon={Target}
+                                title="Project goals"
+                                description="Attach measurable goals to this project and keep workflow effort aligned."
+                              />
+
+                              <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+                                <div className="space-y-3">
+                                  {panelGoals.length > 0 ? (
+                                    panelGoals.map((goal) => {
+                                      const progressPercent = goal.targetValue > 0
+                                        ? Math.min((goal.currentValue / goal.targetValue) * 100, 100)
+                                        : 0
+                                      return (
+                                        <div key={goal.id} className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                                          <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                              <div className="flex flex-wrap items-center gap-2">
+                                                <p className="text-sm font-semibold text-foreground">{goal.title}</p>
+                                                <StatusBadge status={goal.status} />
+                                              </div>
+                                              <p className="mt-2 text-sm text-muted-foreground">{goal.description}</p>
+                                              <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                                                <span>{goal.currentValue}/{goal.targetValue} {goal.unit}</span>
+                                                {goal.workflowIds.length > 0 ? <span>{goal.workflowIds.length} workflows linked</span> : null}
+                                                {goal.dueDate ? <span>Due {new Date(goal.dueDate).toLocaleDateString()}</span> : null}
+                                              </div>
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                              <Button size="sm" variant="outline" onClick={() => setGoalDraft(makeGoalDraft(goal))}>
+                                                <Pencil className="h-4 w-4" />
+                                              </Button>
+                                              {goal.status !== "completed" ? (
+                                                <Button size="sm" variant="outline" onClick={() => onUpdateGoalStatus(goal.id, "completed")}>
+                                                  <CheckCircle2 className="h-4 w-4" />
+                                                </Button>
+                                              ) : (
+                                                <Button size="sm" variant="outline" onClick={() => onUpdateGoalStatus(goal.id, "active")}>
+                                                  <PlayCircle className="h-4 w-4" />
+                                                </Button>
+                                              )}
+                                            </div>
+                                          </div>
+                                          <div className="mt-3 h-2 overflow-hidden rounded-full bg-secondary/40">
+                                            <div className="h-full rounded-full bg-primary" style={{ width: `${progressPercent}%` }} />
+                                          </div>
+                                        </div>
+                                      )
+                                    })
+                                  ) : (
+                                    <EmptyState
+                                      icon={Target}
+                                      title="No goals yet"
+                                      description="Add a measurable goal so this project can show progress and alignment."
+                                    />
+                                  )}
+                                </div>
+
+                                <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                                  <div className="flex items-center gap-2">
+                                    <Target className="h-4 w-4 text-primary" />
+                                    <p className="text-sm font-semibold text-foreground">{goalDraft.id ? "Edit goal" : "Add goal"}</p>
+                                  </div>
+                                  <div className="mt-4 grid gap-3">
+                                    <Input
+                                      value={goalDraft.title}
+                                      onChange={(event) => setGoalDraft((current) => ({ ...current, title: event.target.value }))}
+                                      placeholder="Goal title"
+                                    />
+                                    <Textarea
+                                      value={goalDraft.description}
+                                      onChange={(event) => setGoalDraft((current) => ({ ...current, description: event.target.value }))}
+                                      placeholder="What should this goal change?"
+                                      className="min-h-20"
+                                    />
+                                    <div className="grid gap-3 md:grid-cols-2">
+                                      <Input
+                                        value={goalDraft.currentValue}
+                                        onChange={(event) => setGoalDraft((current) => ({ ...current, currentValue: event.target.value }))}
+                                        placeholder="Current"
+                                        type="number"
+                                      />
+                                      <Input
+                                        value={goalDraft.targetValue}
+                                        onChange={(event) => setGoalDraft((current) => ({ ...current, targetValue: event.target.value }))}
+                                        placeholder="Target"
+                                        type="number"
+                                      />
+                                    </div>
+                                    <div className="grid gap-3 md:grid-cols-2">
+                                      <Input
+                                        value={goalDraft.unit}
+                                        onChange={(event) => setGoalDraft((current) => ({ ...current, unit: event.target.value }))}
+                                        placeholder="Unit"
+                                      />
+                                      <Input
+                                        value={goalDraft.dueDate}
+                                        onChange={(event) => setGoalDraft((current) => ({ ...current, dueDate: event.target.value }))}
+                                        type="date"
+                                      />
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {(["active", "paused", "completed"] as const).map((status) => (
+                                        <Button
+                                          key={status}
+                                          size="sm"
+                                          variant={goalDraft.status === status ? "default" : "outline"}
+                                          onClick={() => setGoalDraft((current) => ({ ...current, status }))}
+                                        >
+                                          {status}
+                                        </Button>
+                                      ))}
+                                    </div>
+                                    <div className="space-y-2">
+                                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                                        Linked workflows
+                                      </p>
+                                      <div className="grid gap-2">
+                                        {panelWorkflows.map((workflow) => (
+                                          <label key={workflow.id} className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/60 px-3 py-2 text-sm">
+                                            <Checkbox
+                                              checked={goalDraft.workflowIds.includes(workflow.id)}
+                                              onCheckedChange={(checked) =>
+                                                setGoalDraft((current) => ({
+                                                  ...current,
+                                                  workflowIds: checked
+                                                    ? [...current.workflowIds, workflow.id]
+                                                    : current.workflowIds.filter((workflowId) => workflowId !== workflow.id),
+                                                }))
+                                              }
+                                            />
+                                            <span className="text-foreground">{workflow.title}</span>
+                                          </label>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      <Button onClick={saveGoal}>
+                                        <Plus className="h-4 w-4" />
+                                        {goalDraft.id ? "Update goal" : "Save goal"}
+                                      </Button>
+                                      {goalDraft.id ? (
+                                        <Button variant="outline" onClick={() => setGoalDraft(makeGoalDraft())}>
+                                          Cancel edit
+                                        </Button>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
                         </TabsContent>
 
                         <TabsContent value="workflows">
