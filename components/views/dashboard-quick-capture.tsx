@@ -16,5 +16,5 @@ interface DashboardQuickCaptureProps {
 }
 
 export function DashboardQuickCapture(props: DashboardQuickCaptureProps) {
-  return <QuickCapture {...props} />
+  return <QuickCapture {...props} variant="compact" />
 }

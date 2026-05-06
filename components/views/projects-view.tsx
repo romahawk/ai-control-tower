@@ -3,18 +3,21 @@
 import { useEffect, useMemo, useState } from "react"
 import {
   Archive,
-  ArrowRight,
   CheckCircle2,
+  ChevronRight,
+  Copy,
+  Database,
   FolderKanban,
-  Info,
   PauseCircle,
+  Pencil,
   PlayCircle,
+  Plus,
   Sparkles,
+  Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { CompactCard } from "@/components/ui/compact-card"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Input } from "@/components/ui/input"
 import { PageHeader } from "@/components/ui/page-header"
@@ -29,16 +32,19 @@ import {
 } from "@/components/ui/select"
 import { SegmentedTabs } from "@/components/ui/segmented-tabs"
 import { StatusBadge } from "@/components/ui/status-badge"
-import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { SCENARIOS } from "@/data/scenarios"
 import { WORKFLOWS } from "@/data/workflows"
+import { getContextIcon } from "@/lib/ui-meta"
 import type {
+  ContextRecord,
   OutputRecord,
   PriorityLevel,
   Project,
   ProjectStatus,
   Scenario,
+  Workflow,
   WorkflowSession,
 } from "@/types"
 
@@ -48,6 +54,7 @@ interface ProjectsViewProps {
   projects: Project[]
   sessions: WorkflowSession[]
   recentOutputs: OutputRecord[]
+  contexts: ContextRecord[]
   onSelectProject: (projectId: string) => void
   onOpenWorkflows: () => void
   onOpenScenario: (scenarioId: string) => void
@@ -63,10 +70,17 @@ interface ProjectsViewProps {
     status?: ProjectStatus
   }) => void
   onUpdateProjectStatus: (projectId: string, status: ProjectStatus) => void
+  onSaveContext: (
+    contextRecord: Omit<ContextRecord, "id" | "createdAt" | "updatedAt"> & {
+      id?: string
+    }
+  ) => void
+  onDeleteContext: (contextId: string) => void
 }
 
 type ProjectTab = "all" | "active" | "paused" | "completed" | "archived"
 type EditorMode = "view" | "create" | "edit"
+type ProjectPanelTab = "overview" | "workflows" | "outputs" | "sessions" | "context"
 
 const projectTabs: Array<{ value: ProjectTab; label: string }> = [
   { value: "all", label: "All" },
@@ -76,16 +90,15 @@ const projectTabs: Array<{ value: ProjectTab; label: string }> = [
   { value: "archived", label: "Archived" },
 ]
 
-const railLanes: Array<{
-  key: ProjectStatus
-  title: string
-  tone: string
-}> = [
-  { key: "active", title: "Active lane", tone: "border-sky-500/20 bg-sky-500/6" },
-  { key: "paused", title: "Paused lane", tone: "border-amber-500/20 bg-amber-500/6" },
-  { key: "completed", title: "Completed lane", tone: "border-emerald-500/20 bg-emerald-500/6" },
-  { key: "archived", title: "Archived lane", tone: "border-slate-500/20 bg-slate-500/6" },
+const panelTabs: Array<{ value: ProjectPanelTab; label: string }> = [
+  { value: "overview", label: "Overview" },
+  { value: "workflows", label: "Workflows" },
+  { value: "outputs", label: "Outputs" },
+  { value: "sessions", label: "Sessions" },
+  { value: "context", label: "Context" },
 ]
+
+const laneOrder: ProjectStatus[] = ["active", "paused", "completed", "archived"]
 
 interface ProjectDraft {
   id?: string
@@ -113,41 +126,64 @@ function makeDraft(project?: Project, fallbackScenarioId?: string): ProjectDraft
   }
 }
 
+function truncate(text: string, max = 88) {
+  if (text.length <= max) return text
+  return `${text.slice(0, max - 1)}…`
+}
+
 export function ProjectsView({
   selectedScenario,
   selectedProject,
   projects,
   sessions,
   recentOutputs,
+  contexts,
   onSelectProject,
   onOpenWorkflows,
   onOpenScenario,
   onSaveProject,
   onUpdateProjectStatus,
+  onSaveContext,
+  onDeleteContext,
 }: ProjectsViewProps) {
   const [activeTab, setActiveTab] = useState<ProjectTab>("all")
   const [focusedProjectId, setFocusedProjectId] = useState(selectedProject?.id)
   const [mode, setMode] = useState<EditorMode>("view")
+  const [panelTab, setPanelTab] = useState<ProjectPanelTab>("overview")
   const [draft, setDraft] = useState<ProjectDraft>(makeDraft(selectedProject, selectedScenario.id))
+  const [copiedContext, setCopiedContext] = useState(false)
+  const [contextTitle, setContextTitle] = useState("")
+  const [contextContent, setContextContent] = useState("")
+  const [contextType, setContextType] = useState<ContextRecord["type"]>("project")
+  const [editingContextId, setEditingContextId] = useState<string | undefined>()
+  const [contextQuery, setContextQuery] = useState("")
 
   useEffect(() => {
-    if (mode !== "view") {
-      return
-    }
+    if (mode !== "view") return
     setFocusedProjectId(selectedProject?.id)
     setDraft(makeDraft(selectedProject, selectedScenario.id))
   }, [mode, selectedProject, selectedScenario.id])
 
-  const filteredProjects = useMemo(() => {
-    return projects.filter((project) => (activeTab === "all" ? true : project.status === activeTab))
-  }, [activeTab, projects])
+  const filteredProjects = useMemo(
+    () => projects.filter((project) => (activeTab === "all" ? true : project.status === activeTab)),
+    [activeTab, projects]
+  )
 
   const focusedProject =
     (mode === "view" ? projects.find((project) => project.id === focusedProjectId) : undefined) ??
     selectedProject ??
     filteredProjects[0]
 
+  const panelProject = mode === "view" ? focusedProject : undefined
+  const currentScenario =
+    panelProject
+      ? SCENARIOS.find((scenario) => scenario.id === panelProject.scenarioId) ?? selectedScenario
+      : SCENARIOS.find((scenario) => scenario.id === draft.scenarioId) ?? selectedScenario
+
   const draftWorkflows = WORKFLOWS.filter((workflow) => workflow.scenarioId === draft.scenarioId)
+
+  const getProjectWorkflows = (project: Project) =>
+    WORKFLOWS.filter((workflow) => project.workflowIds.includes(workflow.id))
 
   const getProjectSessions = (project: Project) =>
     sessions
@@ -165,33 +201,59 @@ export function ProjectsView({
       )
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
 
-  const railProjects = filteredProjects.length > 0 ? filteredProjects : projects
-  const groupedRailProjects = railLanes.map((lane) => ({
-    ...lane,
-    projects: railProjects.filter((project) => project.status === lane.key),
+  const laneGroups = laneOrder.map((status) => ({
+    status,
+    projects: filteredProjects.filter((project) => project.status === status),
   }))
-  const panelProject = mode === "view" ? focusedProject : undefined
+
+  const panelWorkflows = panelProject ? getProjectWorkflows(panelProject) : []
   const panelSessions = panelProject ? getProjectSessions(panelProject) : []
   const panelOutputs = panelProject ? getProjectOutputs(panelProject) : []
-  const activeProjectCount = projects.filter((project) => project.status === "active").length
-  const totalLinkedWorkflowCount = projects.reduce(
-    (count, project) => count + project.workflowIds.length,
-    0
-  )
-  const totalOutputCount = projects.reduce(
-    (count, project) => count + getProjectOutputs(project).length,
-    0
-  )
+  const panelContexts = panelProject
+    ? contexts
+        .filter((context) => {
+          if (context.projectId === panelProject.id) {
+            return true
+          }
+          if (context.workflowId && panelProject.workflowIds.includes(context.workflowId)) {
+            return true
+          }
+          return context.scenarioId === panelProject.scenarioId
+        })
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    : []
+  const normalizedContextQuery = contextQuery.trim().toLowerCase()
+  const filteredPanelContexts = panelContexts.filter((context) => {
+    if (!normalizedContextQuery) return true
+    return (
+      context.title.toLowerCase().includes(normalizedContextQuery) ||
+      context.content.toLowerCase().includes(normalizedContextQuery) ||
+      context.tags?.some((tag) => tag.toLowerCase().includes(normalizedContextQuery))
+    )
+  })
+  const ownedProjectContexts = filteredPanelContexts.filter((context) => context.projectId === panelProject?.id)
+  const inheritedProjectContexts = filteredPanelContexts.filter((context) => context.projectId !== panelProject?.id)
+  const latestWorkflow = panelWorkflows[0]
+  const latestOutput = panelOutputs[0]
+  const latestSession = panelSessions[0]
+  const expectedOutput = latestWorkflow?.output ?? "Visible project output"
+  const reviewSignal = latestSession
+    ? `Last activity ${new Date(latestSession.updatedAt).toLocaleDateString()}`
+    : "No review signal yet"
+
+  const activeCount = projects.filter((project) => project.status === "active").length
+  const linkedWorkflowCount = projects.reduce((count, project) => count + project.workflowIds.length, 0)
+  const outputCount = projects.reduce((count, project) => count + getProjectOutputs(project).length, 0)
 
   const startNewProject = () => {
     setMode("create")
+    setPanelTab("overview")
     setFocusedProjectId(undefined)
     setDraft(makeDraft(undefined, selectedScenario.id))
   }
 
   const startEditingProject = (project: Project) => {
     setMode("edit")
-    setFocusedProjectId(project.id)
     setDraft(makeDraft(project, project.scenarioId))
   }
 
@@ -230,770 +292,1027 @@ export function ProjectsView({
     }))
   }
 
-  const currentScenario = panelProject
-    ? SCENARIOS.find((scenario) => scenario.id === panelProject.scenarioId) ?? selectedScenario
-    : SCENARIOS.find((scenario) => scenario.id === draft.scenarioId) ?? selectedScenario
+  const handleCopyContext = async () => {
+    if (!panelProject) return
+    const payload = [
+      `Project: ${panelProject.name}`,
+      `Scenario: ${currentScenario.name}`,
+      `Status: ${panelProject.status}`,
+      `Priority: ${panelProject.priority}`,
+      `Next action: ${panelProject.nextAction}`,
+      `Workflows: ${panelWorkflows.map((workflow) => workflow.title).join(", ") || "None"}`,
+      `Owner note: ${panelProject.ownerNote || "None"}`,
+      `Vault context: ${panelContexts.map((context) => `${context.title}: ${context.content}`).join(" | ") || "None"}`,
+    ].join("\n")
 
-  const linkedWorkflows = panelProject
-    ? WORKFLOWS.filter((workflow) => panelProject.workflowIds.includes(workflow.id))
-    : draftWorkflows.filter((workflow) => draft.workflowIds.includes(workflow.id))
+    await navigator.clipboard.writeText(payload)
+    setCopiedContext(true)
+    window.setTimeout(() => setCopiedContext(false), 1500)
+  }
+
+  const continueWorkflow = () => {
+    if (!panelProject) return
+    onSelectProject(panelProject.id)
+    onOpenWorkflows()
+  }
+
+  const saveProjectContext = () => {
+    if (!panelProject || !contextTitle.trim() || !contextContent.trim()) {
+      return
+    }
+
+    onSaveContext({
+      id: editingContextId,
+      title: contextTitle.trim(),
+      content: contextContent.trim(),
+      type: contextType,
+      projectId: panelProject.id,
+      scenarioId: panelProject.scenarioId,
+      tags: [currentScenario.category, "project-vault"],
+    })
+
+    setContextTitle("")
+    setContextContent("")
+    setContextType("project")
+    setEditingContextId(undefined)
+  }
+
+  const lifecycleActions = (project: Project) => {
+    switch (project.status) {
+      case "active":
+        return [
+          { label: "Pause", status: "paused" as const, icon: PauseCircle },
+          { label: "Complete", status: "completed" as const, icon: CheckCircle2 },
+          { label: "Archive", status: "archived" as const, icon: Archive },
+        ]
+      case "paused":
+        return [
+          { label: "Resume", status: "active" as const, icon: PlayCircle },
+          { label: "Archive", status: "archived" as const, icon: Archive },
+        ]
+      case "completed":
+        return [
+          { label: "Reopen", status: "active" as const, icon: PlayCircle },
+          { label: "Archive", status: "archived" as const, icon: Archive },
+        ]
+      case "archived":
+        return [{ label: "Restore", status: "active" as const, icon: PlayCircle }]
+      default:
+        return []
+    }
+  }
 
   return (
     <div className="h-full overflow-auto px-4 py-4 md:px-6">
-      <div className="mx-auto max-w-[1680px] space-y-4">
+      <div className="mx-auto max-w-[1560px] space-y-4">
         <PageHeader
           title="Projects"
-          description="Projects are the execution containers that connect one scenario, a small workflow set, and the next action that actually matters."
+          description="Execution containers that connect scenarios, workflows, outputs, and decisions."
           icon={FolderKanban}
           actionLabel="New project"
           actionIcon={Sparkles}
           onAction={startNewProject}
+          className="gap-3"
         />
 
-        <div className="grid gap-3 lg:grid-cols-3">
-          <Card className="surface-panel rounded-3xl border-sky-500/20 bg-sky-500/5">
-            <CardContent className="p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Active projects
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">{activeProjectCount}</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Keep this small so the workspace stays decisive.
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="surface-panel rounded-3xl border-violet-500/20 bg-violet-500/5">
-            <CardContent className="p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Linked workflows
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">{totalLinkedWorkflowCount}</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Projects should group workflows intentionally, not hoard them.
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="surface-panel rounded-3xl border-emerald-500/20 bg-emerald-500/5">
-            <CardContent className="p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Captured outputs
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">{totalOutputCount}</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                A healthy project turns workflow activity into visible results.
-              </p>
-            </CardContent>
-          </Card>
+        <div className="flex flex-wrap items-center gap-2">
+          {[
+            { label: "Active", value: activeCount },
+            { label: "Linked workflows", value: linkedWorkflowCount },
+            { label: "Outputs", value: outputCount },
+          ].map((chip) => (
+            <div
+              key={chip.label}
+              className="rounded-full border border-border/70 bg-secondary/25 px-3 py-1.5 text-xs text-foreground"
+            >
+              <span className="font-semibold">{chip.label}:</span> {chip.value}
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span className="font-medium">Project flow:</span>
+          <span>Choose project</span>
+          <ChevronRight className="h-3.5 w-3.5" />
+          <span>Run workflow</span>
+          <ChevronRight className="h-3.5 w-3.5" />
+          <span>Save output</span>
+          <ChevronRight className="h-3.5 w-3.5" />
+          <span>Review decision</span>
+          <button
+            onClick={() => onOpenScenario(selectedScenario.id)}
+            className="ml-1 text-primary transition hover:opacity-80"
+          >
+            Learn
+          </button>
         </div>
 
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ProjectTab)} className="space-y-4">
           <SegmentedTabs tabs={projectTabs} />
-          <TabsContent value={activeTab} className="outline-none">
-            <Card className="surface-panel rounded-3xl border-primary/20 bg-primary/5">
-              <CardContent className="p-4">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-primary/80">
-                      Project Flow
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Read the page left to right: choose the container, inspect the linked workflow chain, then judge outputs and session movement.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {[
-                      { label: "Step 1", value: "Choose project", tone: "bg-sky-500/12 text-sky-200 border-sky-400/20" },
-                      { label: "Step 2", value: "Trace workflow path", tone: "bg-violet-500/12 text-violet-200 border-violet-400/20" },
-                      { label: "Step 3", value: "Check outputs + sessions", tone: "bg-emerald-500/12 text-emerald-200 border-emerald-400/20" },
-                    ].map((step, index) => (
-                      <div key={step.label} className="flex items-center gap-2">
-                        <div className={`rounded-2xl border px-3 py-2 ${step.tone}`}>
-                          <p className="text-[10px] font-semibold uppercase tracking-wide opacity-80">{step.label}</p>
-                          <p className="text-sm font-semibold">{step.value}</p>
+          <TabsContent value={activeTab}>
+            <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+              <div className="space-y-3">
+                <div className="rounded-3xl border border-border/60 bg-card/70 p-3 lg:hidden">
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                    Project selector
+                  </p>
+                  <Select
+                    value={panelProject?.id}
+                    onValueChange={(value) => {
+                      setMode("view")
+                      setFocusedProjectId(value)
+                      onSelectProject(value)
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredProjects.map((project) => (
+                        <SelectItem key={project.id} value={project.id}>
+                          {project.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Card className="surface-panel hidden rounded-3xl border-border/60 py-0 lg:block">
+                  <CardContent className="space-y-3 p-3">
+                    <SectionHeader
+                      icon={FolderKanban}
+                      title="Project Rail"
+                      description="Compact status lanes for choosing one project."
+                    />
+
+                    {laneGroups.map((lane) => (
+                      <div key={lane.status} className="space-y-2 rounded-2xl border border-border/60 bg-secondary/10 p-2.5">
+                        <div className="flex items-center justify-between gap-2 px-1">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                            {lane.status}
+                          </p>
+                          <span className="text-[10px] text-muted-foreground">
+                            {lane.projects.length}
+                          </span>
                         </div>
-                        {index < 2 ? <ArrowRight className="h-4 w-4 text-primary/60" /> : null}
+
+                        {lane.projects.map((project) => {
+                          const isSelected = mode === "view" && project.id === panelProject?.id
+                          const scenario = SCENARIOS.find((item) => item.id === project.scenarioId)
+                          const outputs = getProjectOutputs(project)
+
+                          return (
+                            <button
+                              key={project.id}
+                              onClick={() => {
+                                setMode("view")
+                                setFocusedProjectId(project.id)
+                                onSelectProject(project.id)
+                              }}
+                              className={`w-full rounded-2xl border px-3 py-3 text-left transition-all duration-150 ${
+                                isSelected
+                                  ? "border-primary/35 bg-primary/10 shadow-[0_8px_28px_rgba(37,99,235,0.14)]"
+                                  : "border-border/70 bg-background/70 hover:-translate-y-0.5 hover:border-primary/20 hover:bg-secondary/20"
+                              }`}
+                              title={project.description}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-sm font-semibold text-foreground">{project.name}</p>
+                                {project.priority !== "low" ? (
+                                  <span className="rounded-full border border-border/70 bg-secondary/25 px-2 py-0.5 text-[10px] text-muted-foreground">
+                                    {project.priority}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {scenario?.name ?? project.scenarioId} · {project.workflowIds.length} workflows · {outputs.length} outputs
+                              </p>
+                              <div className="mt-2 flex items-center gap-2">
+                                <StatusBadge status={project.status} />
+                                <ScenarioBadge scenario={scenario ?? selectedScenario} />
+                              </div>
+                              <p className="mt-2 text-xs text-muted-foreground">
+                                {truncate(project.description, 64)}
+                              </p>
+                            </button>
+                          )
+                        })}
+
+                        {lane.projects.length === 0 ? (
+                          <div className="rounded-xl border border-dashed border-border/60 px-3 py-4 text-center text-xs text-muted-foreground">
+                            No projects here.
+                          </div>
+                        ) : null}
                       </div>
                     ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
-              <Card className="surface-panel rounded-3xl border-border/60 py-0">
-                <CardContent className="p-4">
-                  <SectionHeader
-                    icon={FolderKanban}
-                    title="Project Rail"
-                    description="Use the lanes like a compact kanban: choose the container, then inspect or advance it on the right."
-                  />
-                  <div className="mt-4 space-y-4">
-                    {groupedRailProjects
-                      .filter((lane) => activeTab === "all" || lane.key === activeTab)
-                      .map((lane) => (
-                        <div key={lane.key} className={`rounded-3xl border p-3 ${lane.tone}`}>
-                          <div className="mb-3 flex items-center justify-between gap-2">
-                            <div>
-                              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
-                                {lane.title}
-                              </p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {lane.projects.length} project{lane.projects.length === 1 ? "" : "s"}
-                              </p>
-                            </div>
-                            <StatusBadge status={lane.key} />
-                          </div>
-
-                          <div className="space-y-3">
-                            {lane.projects.map((project) => {
-                              const isFocused = mode === "view" && project.id === focusedProject?.id
-                              const scenario = SCENARIOS.find((item) => item.id === project.scenarioId)
-                              const projectSessions = getProjectSessions(project)
-                              const outputs = getProjectOutputs(project)
-
-                              return (
-                                <div
-                                  key={project.id}
-                                  className={`rounded-[1.4rem] transition-all duration-200 ${
-                                    isFocused ? "translate-x-1" : "hover:-translate-y-0.5 hover:translate-x-1"
-                                  }`}
-                                >
-                                  <CompactCard
-                                    title={project.name}
-                                    subtitle={project.nextAction}
-                                    icon={FolderKanban}
-                                    isActive={isFocused}
-                                    onClick={() => {
-                                      setMode("view")
-                                      setFocusedProjectId(project.id)
-                                      onSelectProject(project.id)
-                                    }}
-                                    className={`border-l-4 ${
-                                      isFocused
-                                        ? "shadow-[0_0_0_1px_rgba(59,130,246,0.35),0_10px_30px_rgba(15,23,42,0.35)]"
-                                        : "hover:shadow-[0_10px_28px_rgba(15,23,42,0.28)]"
-                                    } ${
-                                      lane.key === "active"
-                                        ? "border-l-sky-400"
-                                        : lane.key === "paused"
-                                          ? "border-l-amber-400"
-                                          : lane.key === "completed"
-                                            ? "border-l-emerald-400"
-                                            : "border-l-slate-400"
-                                    }`}
-                                    badges={
-                                      <>
-                                        <StatusBadge status={project.status} />
-                                        <span className="rounded-full border border-border/70 bg-secondary/25 px-2.5 py-1 text-[11px] text-muted-foreground">
-                                          {project.priority} priority
-                                        </span>
-                                      </>
-                                    }
-                                    metadata={
-                                      <>
-                                        <span>{scenario?.name ?? project.scenarioId}</span>
-                                        <span>{project.workflowIds.length} workflows</span>
-                                        <span>{projectSessions.length} sessions</span>
-                                        <span>{outputs.length} outputs</span>
-                                      </>
-                                    }
-                                    secondaryAction={
-                                      <button
-                                        title="Edit this project's scope, linked workflows, and next action"
-                                        onClick={(event) => {
-                                          event.stopPropagation()
-                                          startEditingProject(project)
-                                        }}
-                                        className="rounded-xl border border-border bg-secondary/25 px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-secondary/45"
-                                      >
-                                        Edit
-                                      </button>
-                                    }
-                                  >
-                                    <div className="mb-3 flex items-center gap-2 text-[11px] text-muted-foreground">
-                                      <Info className="h-3.5 w-3.5 text-primary/70" />
-                                      <span>
-                                        This card is the project container. Open it to trace execution flow on the right.
-                                      </span>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">{project.description}</p>
-                                  </CompactCard>
-                                </div>
-                              )
-                            })}
-
-                            {lane.projects.length === 0 ? (
-                              <div className="rounded-2xl border border-dashed border-border/60 px-4 py-5 text-center text-xs text-muted-foreground">
-                                No projects in this lane.
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-                      ))}
-
-                    {railProjects.length === 0 ? (
-                      <EmptyState
-                        icon={FolderKanban}
-                        title="No projects yet"
-                        description="Create a project to group related workflows into one coherent execution track."
-                      />
-                    ) : null}
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </div>
 
               <div className="space-y-4">
                 {mode === "view" && panelProject ? (
-                  <>
-                    <Card className="surface-panel rounded-3xl border-border/60">
-                      <CardContent className="p-5">
-                        <div className="flex flex-wrap items-start justify-between gap-4">
-                          <div className="max-w-3xl">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <StatusBadge status={panelProject.status} />
-                              <ScenarioBadge scenario={currentScenario} />
+                  <Card className="surface-panel rounded-3xl border-border/60">
+                    <CardContent className="space-y-4 p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="max-w-3xl">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <StatusBadge status={panelProject.status} />
+                            <ScenarioBadge scenario={currentScenario} />
+                            {panelProject.priority !== "low" ? (
                               <span className="rounded-full border border-border/70 bg-secondary/25 px-2.5 py-1 text-[11px] text-muted-foreground">
                                 {panelProject.priority} priority
                               </span>
-                            </div>
-                            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
-                              {panelProject.name}
-                            </h2>
-                            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                              {panelProject.description}
-                            </p>
+                            ) : null}
                           </div>
-                          <div className="flex flex-wrap gap-2">
-                            <Button title="Open the parent scenario that frames this project" variant="outline" onClick={() => onOpenScenario(panelProject.scenarioId)}>
-                              Open scenario
-                            </Button>
-                            <Button
-                              title="Open the workflow library with this project context selected"
-                              variant="outline"
-                              onClick={() => {
-                                onSelectProject(panelProject.id)
-                                onOpenWorkflows()
-                              }}
-                            >
-                              Open workflows
-                            </Button>
-                            <Button title="Adjust project structure, status, and workflow links" onClick={() => startEditingProject(panelProject)}>Edit project</Button>
-                          </div>
-                        </div>
-
-                        <div className="mt-5 rounded-3xl border border-primary/20 bg-primary/10 p-5">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-primary/85">
-                            Current next action
+                          <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
+                            {panelProject.name}
+                          </h2>
+                          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground line-clamp-2">
+                            {panelProject.description}
                           </p>
-                          <p className="mt-2 text-sm text-foreground">{panelProject.nextAction}</p>
                         </div>
 
-                        <div className="mt-5 rounded-3xl border border-violet-500/20 bg-violet-500/7 p-4">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-violet-200/90">
-                              Workflow journey
-                            </p>
-                            <span className="text-[11px] text-violet-100/70">
-                              Follow the path left to right. Each card is one stage in the project journey.
+                        <div className="flex flex-wrap gap-2">
+                          <Button onClick={continueWorkflow}>
+                            <PlayCircle className="h-4 w-4" />
+                            Continue
+                          </Button>
+                          <Button variant="outline" onClick={onOpenWorkflows}>
+                            Open workflows
+                          </Button>
+                          <Button variant="outline" onClick={() => startEditingProject(panelProject)}>
+                            Edit
+                          </Button>
+                          {lifecycleActions(panelProject).map((action) => {
+                            const Icon = action.icon
+                            return (
+                              <Button
+                                key={action.label}
+                                variant="outline"
+                                onClick={() => onUpdateProjectStatus(panelProject.id, action.status)}
+                              >
+                                <Icon className="h-4 w-4" />
+                                {action.label}
+                              </Button>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 xl:grid-cols-[1.15fr_0.85fr]">
+                        <div className="rounded-3xl border border-primary/20 bg-primary/8 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-primary/85">
+                            Next action
+                          </p>
+                          <p className="mt-2 text-sm font-medium text-foreground">
+                            {panelProject.nextAction || "Choose the next concrete move for this project."}
+                          </p>
+                          <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                            <span className="rounded-full border border-border/70 bg-background/60 px-2.5 py-1">
+                              Expected output: {expectedOutput}
+                            </span>
+                            <span className="rounded-full border border-border/70 bg-background/60 px-2.5 py-1">
+                              {reviewSignal}
                             </span>
                           </div>
-                          <div className="mt-4 overflow-x-auto pb-2">
-                            <div className="flex min-w-max items-stretch gap-3">
-                              {linkedWorkflows.map((workflow, index) => (
-                                <div
-                                  key={workflow.id}
-                                  className="flex items-center gap-3"
-                                >
-                                  <div
-                                    title={workflow.goal}
-                                    className="group w-[240px] rounded-3xl border border-violet-400/20 bg-background/70 p-4 transition duration-200 hover:-translate-y-1 hover:border-violet-300/40 hover:bg-violet-500/10 hover:shadow-[0_14px_32px_rgba(76,29,149,0.18)]"
-                                  >
-                                    <div className="flex items-center justify-between gap-2">
-                                      <div className="rounded-full border border-violet-400/20 bg-violet-500/12 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200/90">
-                                        Step {index + 1}
-                                      </div>
-                                      <StatusBadge status={workflow.status} />
-                                    </div>
-                                    <p className="mt-3 text-sm font-semibold text-foreground">{workflow.title}</p>
-                                    <p className="mt-2 line-clamp-3 text-xs leading-5 text-muted-foreground">
-                                      {workflow.goal}
-                                    </p>
-                                    <div className="mt-3 text-[11px] text-violet-100/70">
-                                      {workflow.frequency}
-                                    </div>
-                                  </div>
-                                  {index < linkedWorkflows.length - 1 ? (
-                                    <div className="flex items-center gap-1 px-1">
-                                      <div className="h-px w-6 bg-violet-300/40" />
-                                      <ArrowRight className="h-4 w-4 text-violet-300/60" />
-                                      <div className="h-px w-6 bg-violet-300/40" />
-                                    </div>
-                                  ) : null}
-                                </div>
-                              ))}
-                              {linkedWorkflows.length === 0 ? (
-                                <p className="text-sm text-muted-foreground">
-                                  Link workflows to make the project path visible.
-                                </p>
-                              ) : null}
-                            </div>
+                          <div className="mt-4">
+                            <Button size="sm" onClick={continueWorkflow}>
+                              Continue workflow
+                            </Button>
                           </div>
                         </div>
 
-                        <div className="mt-5 grid gap-3 md:grid-cols-4">
-                          <div className="rounded-2xl border border-sky-500/20 bg-sky-500/7 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
                               Scenario
                             </p>
                             <p className="mt-2 text-sm font-medium text-foreground">{currentScenario.name}</p>
                           </div>
-                          <div className="rounded-2xl border border-violet-500/20 bg-violet-500/7 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
                               Workflows
                             </p>
-                            <p className="mt-2 text-sm font-medium text-foreground">
-                              {panelProject.workflowIds.length} linked
-                            </p>
+                            <p className="mt-2 text-sm font-medium text-foreground">{panelWorkflows.length}</p>
                           </div>
-                          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/7 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                              Sessions
-                            </p>
-                            <p className="mt-2 text-sm font-medium text-foreground">{panelSessions.length} total</p>
-                          </div>
-                          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/7 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
                               Outputs
                             </p>
-                            <p className="mt-2 text-sm font-medium text-foreground">{panelOutputs.length} captured</p>
+                            <p className="mt-2 text-sm font-medium text-foreground">{panelOutputs.length}</p>
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
+                      </div>
 
-                    <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-                      <Card className="surface-panel rounded-3xl border-border/60">
-                        <CardContent className="p-5">
-                          <SectionHeader
-                            icon={FolderKanban}
-                            title="Project frame"
-                            description="Why this project exists and how it should behave."
-                          />
-                          <div className="mt-4 space-y-4">
-                            <div className="rounded-2xl border border-sky-500/20 bg-sky-500/7 p-4">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                Owner note
-                              </p>
-                              <p className="mt-2 text-sm text-foreground">
-                                {panelProject.ownerNote || "No owner note added yet."}
-                              </p>
-                            </div>
-                            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/7 p-4">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                Lifecycle controls
-                              </p>
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                <Button
-                                  variant="outline"
-                                  onClick={() =>
-                                    onUpdateProjectStatus(
-                                      panelProject.id,
-                                      panelProject.status === "paused" ? "active" : "paused"
-                                    )
+                      <Tabs value={panelTab} onValueChange={(value) => setPanelTab(value as ProjectPanelTab)} className="space-y-4">
+                        <TabsList className="w-full justify-start overflow-x-auto rounded-2xl bg-secondary/20 p-1">
+                          {panelTabs.map((tab) => (
+                            <TabsTrigger key={tab.value} value={tab.value} className="px-4">
+                              {tab.label}
+                            </TabsTrigger>
+                          ))}
+                        </TabsList>
+
+                        <TabsContent value="overview" className="space-y-4">
+                          <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+                            <Card className="rounded-3xl border-border/60 bg-card/60">
+                              <CardContent className="p-4">
+                                <SectionHeader
+                                  icon={PlayCircle}
+                                  title="Linked workflows"
+                                  description="The few workflows this project currently depends on."
+                                  action={
+                                    panelWorkflows.length > 4 ? (
+                                      <button
+                                        onClick={() => setPanelTab("workflows")}
+                                        className="text-xs font-medium text-primary transition hover:opacity-80"
+                                      >
+                                        View all workflows
+                                      </button>
+                                    ) : undefined
                                   }
-                                >
-                                  {panelProject.status === "paused" ? (
-                                    <>
-                                      <PlayCircle className="h-4 w-4" />
-                                      Resume project
-                                    </>
-                                  ) : (
-                                    <>
-                                      <PauseCircle className="h-4 w-4" />
-                                      Pause project
-                                    </>
-                                  )}
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  onClick={() => onUpdateProjectStatus(panelProject.id, "completed")}
-                                >
-                                  <CheckCircle2 className="h-4 w-4" />
-                                  Complete
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  onClick={() => onUpdateProjectStatus(panelProject.id, "archived")}
-                                >
-                                  <Archive className="h-4 w-4" />
-                                  Archive
-                                </Button>
-                              </div>
+                                />
+                                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                  {panelWorkflows.slice(0, 4).map((workflow, index) => (
+                                    <div
+                                      key={workflow.id}
+                                      className="group rounded-2xl border border-border/60 bg-secondary/15 p-4 transition duration-150 hover:-translate-y-0.5 hover:border-primary/20 hover:bg-secondary/25"
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/85">
+                                          Step {index + 1}
+                                        </div>
+                                        <StatusBadge status={workflow.status} />
+                                      </div>
+                                      <p className="mt-3 text-sm font-semibold text-foreground">{workflow.title}</p>
+                                      <p className="mt-1 text-xs text-muted-foreground">
+                                        {truncate(workflow.goal, 82)}
+                                      </p>
+                                      <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
+                                        <span>{workflow.frequency}</span>
+                                        <button
+                                          onClick={continueWorkflow}
+                                          className="text-primary transition hover:opacity-80"
+                                        >
+                                          Continue
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </CardContent>
+                            </Card>
+
+                            <div className="grid gap-4">
+                              <Card className="rounded-3xl border-border/60 bg-card/60">
+                                <CardContent className="p-4">
+                                  <SectionHeader
+                                    icon={Sparkles}
+                                    title="Latest output"
+                                    description="Visible progress from this project."
+                                  />
+                                  <div className="mt-4">
+                                    {latestOutput ? (
+                                      <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                                        <p className="text-sm font-semibold text-foreground">{latestOutput.title}</p>
+                                        <p className="mt-2 text-sm text-muted-foreground line-clamp-3">
+                                          {latestOutput.content}
+                                        </p>
+                                        <p className="mt-3 text-[11px] text-muted-foreground">
+                                          {new Date(latestOutput.createdAt).toLocaleDateString()}
+                                        </p>
+                                      </div>
+                                    ) : (
+                                      <div className="rounded-2xl border border-dashed border-border/60 px-4 py-6">
+                                        <EmptyState
+                                          icon={Sparkles}
+                                          title="No outputs yet"
+                                          description="Run a workflow and save an output to create visible progress."
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                </CardContent>
+                              </Card>
+
+                              <Card className="rounded-3xl border-border/60 bg-card/60">
+                                <CardContent className="p-4">
+                                  <SectionHeader
+                                    icon={FolderKanban}
+                                    title="Latest session"
+                                    description="The most recent execution signal."
+                                  />
+                                  <div className="mt-4">
+                                    {latestSession ? (
+                                      <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                                        <div className="flex items-center justify-between gap-2">
+                                          <p className="text-sm font-semibold text-foreground">
+                                            {WORKFLOWS.find((workflow) => workflow.id === latestSession.workflowId)?.title ??
+                                              latestSession.workflowId}
+                                          </p>
+                                          <StatusBadge status={latestSession.status} />
+                                        </div>
+                                        <p className="mt-2 text-[11px] text-muted-foreground">
+                                          Updated {new Date(latestSession.updatedAt).toLocaleString()}
+                                        </p>
+                                        <p className="mt-2 text-sm text-muted-foreground">
+                                          {latestSession.summary ||
+                                            latestSession.resumeNote ||
+                                            latestSession.blockerNote ||
+                                            "No session summary yet."}
+                                        </p>
+                                      </div>
+                                    ) : (
+                                      <div className="rounded-2xl border border-dashed border-border/60 px-4 py-6">
+                                        <EmptyState
+                                          icon={PlayCircle}
+                                          title="No sessions yet"
+                                          description="Sessions appear after a workflow step is run."
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                </CardContent>
+                              </Card>
                             </div>
                           </div>
-                        </CardContent>
-                      </Card>
+                        </TabsContent>
 
-                      <Card className="surface-panel rounded-3xl border-violet-500/20 bg-violet-500/4">
-                        <CardContent className="p-5">
-                          <SectionHeader
-                            icon={PlayCircle}
-                            title="Linked workflows"
-                            description="This project should only carry the workflows that genuinely belong together."
-                          />
-                          <div className="mt-4 grid gap-3 md:grid-cols-2">
-                            {linkedWorkflows.map((workflow) => (
-                              <div
-                                key={workflow.id}
-                                title={workflow.goal}
-                                className="rounded-2xl border border-violet-400/20 bg-violet-500/8 p-4 transition hover:border-violet-300/40 hover:bg-violet-500/12"
-                              >
-                                <div className="flex items-center justify-between gap-2">
-                                  <p className="text-sm font-semibold text-foreground">{workflow.title}</p>
-                                  <StatusBadge status={workflow.status} />
-                                </div>
-                                <p className="mt-2 text-sm text-muted-foreground">{workflow.goal}</p>
-                                <p className="mt-3 text-xs text-muted-foreground">{workflow.frequency}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-
-                    <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-                      <Card className="surface-panel rounded-3xl border-emerald-500/20 bg-emerald-500/4">
-                        <CardContent className="p-5">
-                          <SectionHeader
-                            icon={Sparkles}
-                            title="Recent outputs"
-                            description="Visible results are the best signal that the project is alive."
-                          />
-                          <div className="mt-4 space-y-3">
-                            {panelOutputs.slice(0, 4).map((output) => (
-                              <div
-                                key={output.id}
-                                title="Captured result produced by one of this project's linked workflows"
-                                className="rounded-2xl border border-emerald-400/20 bg-emerald-500/8 p-4 transition hover:border-emerald-300/40 hover:bg-emerald-500/12"
-                              >
-                                <p className="text-sm font-semibold text-foreground">{output.title}</p>
-                                <p className="mt-1 text-sm text-muted-foreground">{output.content}</p>
-                                <p className="mt-3 text-xs text-muted-foreground">
-                                  {new Date(output.createdAt).toLocaleDateString()}
-                                </p>
-                              </div>
-                            ))}
-                            {panelOutputs.length === 0 ? (
-                              <EmptyState
-                                icon={Sparkles}
-                                title="No outputs yet"
-                                description="Outputs linked to this project will accumulate here once workflows start producing results."
-                              />
-                            ) : null}
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      <Card className="surface-panel rounded-3xl border-amber-500/20 bg-amber-500/4">
-                        <CardContent className="p-5">
-                          <SectionHeader
-                            icon={FolderKanban}
-                            title="Session activity"
-                            description="Sessions tell you whether the project is moving, waiting, or blocked."
-                          />
-                          <div className="mt-4 space-y-3">
-                            {panelSessions.slice(0, 4).map((session) => (
-                              <div
-                                key={session.id}
-                                title="Execution session state for one workflow inside this project"
-                                className="rounded-2xl border border-amber-400/20 bg-amber-500/8 p-4 transition hover:border-amber-300/40 hover:bg-amber-500/12"
-                              >
-                                <div className="flex items-center justify-between gap-2">
-                                  <p className="text-sm font-semibold text-foreground">
-                                    {WORKFLOWS.find((workflow) => workflow.id === session.workflowId)?.title ??
-                                      session.workflowId}
-                                  </p>
-                                  <StatusBadge status={session.status} />
-                                </div>
-                                <p className="mt-2 text-xs text-muted-foreground">
-                                  Updated {new Date(session.updatedAt).toLocaleString()}
-                                </p>
-                                {session.blockerNote ? (
-                                  <p className="mt-2 text-sm text-muted-foreground">{session.blockerNote}</p>
-                                ) : null}
-                              </div>
-                            ))}
-                            {panelSessions.length === 0 ? (
-                              <EmptyState
+                        <TabsContent value="workflows">
+                          <Card className="rounded-3xl border-border/60 bg-card/60">
+                            <CardContent className="p-4">
+                              <SectionHeader
                                 icon={PlayCircle}
-                                title="No sessions yet"
-                                description="Once a linked workflow is run, its sessions will give this project an execution history."
+                                title="Workflow set"
+                                description="Compact workflow cards with direct actions."
                               />
-                            ) : null}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </>
+                              <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                                {panelWorkflows.map((workflow: Workflow) => (
+                                  <div
+                                    key={workflow.id}
+                                    className="rounded-2xl border border-border/60 bg-secondary/15 p-4 transition duration-150 hover:-translate-y-0.5 hover:border-primary/20 hover:bg-secondary/25"
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="text-sm font-semibold text-foreground">{workflow.title}</p>
+                                      <StatusBadge status={workflow.status} />
+                                    </div>
+                                    <p className="mt-2 text-sm text-muted-foreground">
+                                      {truncate(workflow.goal, 120)}
+                                    </p>
+                                    <div className="mt-4 flex items-center justify-between text-[11px] text-muted-foreground">
+                                      <span>{workflow.frequency}</span>
+                                      <div className="flex gap-2">
+                                        <Button size="sm" variant="outline" onClick={continueWorkflow}>
+                                          Open
+                                        </Button>
+                                        <Button size="sm" onClick={continueWorkflow}>
+                                          Continue
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </TabsContent>
+
+                        <TabsContent value="outputs">
+                          <Card className="rounded-3xl border-border/60 bg-card/60">
+                            <CardContent className="p-4">
+                              <SectionHeader
+                                icon={Sparkles}
+                                title="Project outputs"
+                                description="Everything visible this project has produced so far."
+                              />
+                              <div className="mt-4 space-y-3">
+                                {panelOutputs.length > 0 ? (
+                                  panelOutputs.map((output) => (
+                                    <div
+                                      key={output.id}
+                                      className="rounded-2xl border border-border/60 bg-secondary/15 p-4"
+                                    >
+                                      <p className="text-sm font-semibold text-foreground">{output.title}</p>
+                                      <p className="mt-2 text-sm text-muted-foreground">{output.content}</p>
+                                      <p className="mt-3 text-[11px] text-muted-foreground">
+                                        {new Date(output.createdAt).toLocaleDateString()}
+                                      </p>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="rounded-2xl border border-dashed border-border/60 px-4 py-6">
+                                    <EmptyState
+                                      icon={Sparkles}
+                                      title="No outputs yet"
+                                      description="Run a workflow and save an output to create visible progress."
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </TabsContent>
+
+                        <TabsContent value="sessions">
+                          <Card className="rounded-3xl border-border/60 bg-card/60">
+                            <CardContent className="p-4">
+                              <SectionHeader
+                                icon={FolderKanban}
+                                title="Session activity"
+                                description="Execution signals attached to this project."
+                              />
+                              <div className="mt-4 space-y-3">
+                                {panelSessions.length > 0 ? (
+                                  panelSessions.map((session) => (
+                                    <div
+                                      key={session.id}
+                                      className="rounded-2xl border border-border/60 bg-secondary/15 p-4"
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <p className="text-sm font-semibold text-foreground">
+                                          {WORKFLOWS.find((workflow) => workflow.id === session.workflowId)?.title ??
+                                            session.workflowId}
+                                        </p>
+                                        <StatusBadge status={session.status} />
+                                      </div>
+                                      <p className="mt-2 text-[11px] text-muted-foreground">
+                                        Updated {new Date(session.updatedAt).toLocaleString()}
+                                      </p>
+                                      <p className="mt-2 text-sm text-muted-foreground">
+                                        {session.summary ||
+                                          session.resumeNote ||
+                                          session.blockerNote ||
+                                          "No extra session detail yet."}
+                                      </p>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="rounded-2xl border border-dashed border-border/60 px-4 py-6">
+                                    <EmptyState
+                                      icon={PlayCircle}
+                                      title="No sessions yet"
+                                      description="Sessions appear after a workflow step is run."
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </TabsContent>
+
+                        <TabsContent value="context">
+                          <Card className="rounded-3xl border-border/60 bg-card/60">
+                            <CardContent className="space-y-4 p-4">
+                              <SectionHeader
+                                icon={Database}
+                                title="Project context"
+                                description="Why this project exists, what constrains it, and how to carry context forward."
+                                action={
+                                  <Button size="sm" variant="outline" onClick={handleCopyContext}>
+                                    <Copy className="h-4 w-4" />
+                                    {copiedContext ? "Copied" : "Copy project context"}
+                                  </Button>
+                                }
+                              />
+
+                              <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
+                                <div className="space-y-3">
+                                  <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                                      Owner note
+                                    </p>
+                                    <p className="mt-2 text-sm text-foreground">
+                                      {panelProject.ownerNote || "No owner note yet."}
+                                    </p>
+                                  </div>
+                                  <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                                      Why this project exists
+                                    </p>
+                                    <p className="mt-2 text-sm text-foreground">{panelProject.description}</p>
+                                  </div>
+                                  <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                                      Key constraints
+                                    </p>
+                                    <p className="mt-2 text-sm text-muted-foreground">
+                                      Keep the workflow set small, produce visible outputs, and keep one clear next action.
+                                    </p>
+                                  </div>
+                                  <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                                    <div className="flex items-center gap-2">
+                                      <Database className="h-4 w-4 text-primary" />
+                                      <p className="text-sm font-semibold text-foreground">Vault records</p>
+                                    </div>
+                                    <div className="mt-3">
+                                      <Input
+                                        value={contextQuery}
+                                        onChange={(event) => setContextQuery(event.target.value)}
+                                        placeholder="Search project context..."
+                                      />
+                                    </div>
+                                    <div className="mt-3 space-y-3">
+                                      {filteredPanelContexts.length > 0 ? (
+                                        <>
+                                          {ownedProjectContexts.length > 0 ? (
+                                            <div className="space-y-3">
+                                              <div className="flex items-center justify-between gap-2">
+                                                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                                                  Project-owned
+                                                </p>
+                                                <span className="text-[10px] text-muted-foreground">{ownedProjectContexts.length}</span>
+                                              </div>
+                                              {ownedProjectContexts.map((context) => {
+                                                const Icon = getContextIcon(context.type)
+                                                return (
+                                                  <div key={context.id} className="rounded-2xl border border-border/60 bg-background/60 p-3">
+                                                    <div className="flex items-start gap-3">
+                                                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-knowledge/10 text-knowledge">
+                                                        <Icon className="h-4 w-4" />
+                                                      </div>
+                                                      <div className="min-w-0 flex-1">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                          <p className="text-sm font-semibold text-foreground">{context.title}</p>
+                                                          <span className="rounded-full border border-border/60 bg-secondary/20 px-2 py-0.5 text-[10px] text-muted-foreground">
+                                                            {context.type}
+                                                          </span>
+                                                          <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
+                                                            owned
+                                                          </span>
+                                                        </div>
+                                                        <p className="mt-2 text-sm text-muted-foreground">{context.content}</p>
+                                                        {context.tags?.length ? (
+                                                          <div className="mt-2 flex flex-wrap gap-2">
+                                                            {context.tags.map((tag) => (
+                                                              <span key={tag} className="rounded-full border border-border/60 bg-card/50 px-2 py-0.5 text-[10px] text-muted-foreground">
+                                                                {tag}
+                                                              </span>
+                                                            ))}
+                                                          </div>
+                                                        ) : null}
+                                                      </div>
+                                                      <div className="flex flex-col gap-2">
+                                                        <Button
+                                                          size="sm"
+                                                          variant="outline"
+                                                          onClick={() => {
+                                                            setEditingContextId(context.id)
+                                                            setContextTitle(context.title)
+                                                            setContextContent(context.content)
+                                                            setContextType(context.type)
+                                                          }}
+                                                        >
+                                                          <Pencil className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button size="sm" variant="outline" onClick={() => onDeleteContext(context.id)}>
+                                                          <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                )
+                                              })}
+                                            </div>
+                                          ) : null}
+                                          {inheritedProjectContexts.length > 0 ? (
+                                            <div className="space-y-3">
+                                              <div className="flex items-center justify-between gap-2">
+                                                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                                                  Inherited from scenario/workflows
+                                                </p>
+                                                <span className="text-[10px] text-muted-foreground">{inheritedProjectContexts.length}</span>
+                                              </div>
+                                              {inheritedProjectContexts.map((context) => {
+                                                const Icon = getContextIcon(context.type)
+                                                return (
+                                                  <div key={context.id} className="rounded-2xl border border-border/60 bg-background/40 p-3">
+                                                    <div className="flex items-start gap-3">
+                                                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-knowledge/10 text-knowledge">
+                                                        <Icon className="h-4 w-4" />
+                                                      </div>
+                                                      <div className="min-w-0 flex-1">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                          <p className="text-sm font-semibold text-foreground">{context.title}</p>
+                                                          <span className="rounded-full border border-border/60 bg-secondary/20 px-2 py-0.5 text-[10px] text-muted-foreground">
+                                                            {context.type}
+                                                          </span>
+                                                          <span className="rounded-full border border-border/60 bg-card/50 px-2 py-0.5 text-[10px] text-muted-foreground">
+                                                            inherited
+                                                          </span>
+                                                        </div>
+                                                        <p className="mt-2 text-sm text-muted-foreground">{context.content}</p>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                )
+                                              })}
+                                            </div>
+                                          ) : null}
+                                        </>
+                                      ) : (
+                                        <EmptyState
+                                          icon={Database}
+                                          title={panelContexts.length > 0 ? "No matching context" : "No project context yet"}
+                                          description={
+                                            panelContexts.length > 0
+                                              ? "Try a broader search to reveal stored vault records."
+                                              : "Save reusable project notes here so prompts and workflows stop repeating the same setup."
+                                          }
+                                        />
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                                    <div className="flex items-center gap-2">
+                                      <Plus className="h-4 w-4 text-primary" />
+                                      <p className="text-sm font-semibold text-foreground">Add vault record</p>
+                                    </div>
+                                    <div className="mt-3 grid gap-3">
+                                      <Input
+                                        value={contextTitle}
+                                        onChange={(event) => setContextTitle(event.target.value)}
+                                        placeholder="Context title"
+                                      />
+                                      <Textarea
+                                        value={contextContent}
+                                        onChange={(event) => setContextContent(event.target.value)}
+                                        placeholder="What should this project remember across workflows?"
+                                        className="min-h-24"
+                                      />
+                                      <div className="flex flex-wrap gap-2">
+                                        {(["project", "business", "customer", "decision", "reference"] as const).map((option) => (
+                                          <Button
+                                            key={option}
+                                            variant={contextType === option ? "default" : "outline"}
+                                            size="sm"
+                                            onClick={() => setContextType(option)}
+                                          >
+                                            {option}
+                                          </Button>
+                                        ))}
+                                      </div>
+                                      <div>
+                                        <Button size="sm" onClick={saveProjectContext}>
+                                          <Plus className="h-4 w-4" />
+                                          {editingContextId ? "Update context record" : "Save context record"}
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-wrap items-start gap-2 lg:w-[220px] lg:flex-col">
+                                  {lifecycleActions(panelProject).map((action) => {
+                                    const Icon = action.icon
+                                    return (
+                                      <Button
+                                        key={action.label}
+                                        variant="outline"
+                                        className="justify-start lg:w-full"
+                                        onClick={() => onUpdateProjectStatus(panelProject.id, action.status)}
+                                      >
+                                        <Icon className="h-4 w-4" />
+                                        {action.label}
+                                      </Button>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </TabsContent>
+                      </Tabs>
+                    </CardContent>
+                  </Card>
                 ) : (
-                    <Card className="surface-panel rounded-3xl border-primary/20 bg-primary/4">
-                      <CardContent className="p-5">
+                  <Card className="surface-panel rounded-3xl border-border/60">
+                    <CardContent className="space-y-4 p-5">
                       <SectionHeader
                         icon={mode === "create" ? Sparkles : FolderKanban}
                         title={mode === "create" ? "Create project" : "Edit project"}
-                        description="Keep the project definition tight: one scenario, a small workflow cluster, and a next action clear enough to act on."
+                        description="Define the project, link its workflows, and keep the next action obvious."
                       />
 
-                        <div className="mt-5 grid gap-4">
-                          <div className="rounded-3xl border border-primary/20 bg-primary/8 p-4">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-primary/85">
-                                Builder sequence
-                              </p>
-                              <span className="text-[11px] text-muted-foreground">
-                                Define the project {"->"} pick the scenario {"->"} assemble the workflow chain.
-                              </span>
-                            </div>
-                            <div className="mt-3 flex flex-wrap items-center gap-2">
-                              {["Name + intent", "Scenario + status", "Workflow chain", "Save project"].map((step, index) => (
-                                <div key={step} className="flex items-center gap-2">
-                                  <div className="rounded-2xl border border-primary/20 bg-background/60 px-3 py-2">
-                                    <p className="text-[10px] font-semibold uppercase tracking-wide text-primary/80">
-                                      Step {index + 1}
-                                    </p>
-                                    <p className="text-sm font-semibold text-foreground">{step}</p>
-                                  </div>
-                                  {index < 3 ? <ArrowRight className="h-4 w-4 text-primary/60" /> : null}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="grid gap-3 md:grid-cols-2">
-                          <div className="space-y-2">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                              Project name
-                            </p>
-                            <Input
-                              value={draft.name}
-                              onChange={(event) =>
-                                setDraft((current) => ({ ...current, name: event.target.value }))
-                              }
-                              placeholder="AI Control Tower"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                              Priority
-                            </p>
-                            <Select
-                              value={draft.priority}
-                              onValueChange={(value) =>
-                                setDraft((current) => ({
-                                  ...current,
-                                  priority: value as PriorityLevel,
-                                }))
-                              }
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select priority" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="high">High</SelectItem>
-                                <SelectItem value="medium">Medium</SelectItem>
-                                <SelectItem value="low">Low</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-
+                      <div className="grid gap-3 md:grid-cols-2">
                         <div className="space-y-2">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                            Description
-                          </p>
-                          <Textarea
-                            value={draft.description}
-                            onChange={(event) =>
-                              setDraft((current) => ({ ...current, description: event.target.value }))
-                            }
-                            placeholder="What is this project trying to move forward?"
-                            className="min-h-24"
-                          />
-                        </div>
-
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <div className="space-y-2">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                              Scenario
-                            </p>
-                            <Select
-                              value={draft.scenarioId}
-                              onValueChange={(value) =>
-                                setDraft((current) => ({
-                                  ...current,
-                                  scenarioId: value,
-                                  workflowIds: current.workflowIds.filter((workflowId) =>
-                                    WORKFLOWS.some(
-                                      (workflow) =>
-                                        workflow.id === workflowId && workflow.scenarioId === value
-                                    )
-                                  ),
-                                }))
-                              }
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select scenario" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {SCENARIOS.map((scenario) => (
-                                  <SelectItem key={scenario.id} value={scenario.id}>
-                                    {scenario.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div className="space-y-2">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                              Status
-                            </p>
-                            <Select
-                              value={draft.status}
-                              onValueChange={(value) =>
-                                setDraft((current) => ({
-                                  ...current,
-                                  status: value as ProjectStatus,
-                                }))
-                              }
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select status" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="active">Active</SelectItem>
-                                <SelectItem value="paused">Paused</SelectItem>
-                                <SelectItem value="completed">Completed</SelectItem>
-                                <SelectItem value="archived">Archived</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                            Next action
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                            Project name
                           </p>
                           <Input
-                            value={draft.nextAction}
-                            onChange={(event) =>
-                              setDraft((current) => ({ ...current, nextAction: event.target.value }))
-                            }
-                            placeholder="What should happen next?"
+                            value={draft.name}
+                            onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
+                            placeholder="AI Control Tower"
                           />
                         </div>
-
                         <div className="space-y-2">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                            Owner note
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                            Priority
                           </p>
-                          <Textarea
-                            value={draft.ownerNote}
-                            onChange={(event) =>
-                              setDraft((current) => ({ ...current, ownerNote: event.target.value }))
-                            }
-                            placeholder="Optional note about why this project matters right now."
-                            className="min-h-20"
-                          />
-                        </div>
-
-                        <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-                          <div className="rounded-2xl border border-violet-500/20 bg-violet-500/7 p-4">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                Workflow picker
-                              </p>
-                              <button
-                                onClick={() => onOpenScenario(draft.scenarioId)}
-                                className="text-xs font-medium text-primary transition hover:opacity-80"
-                              >
-                                Open scenario
-                              </button>
-                            </div>
-                            <div className="mt-3 space-y-2">
-                              {draftWorkflows.map((workflow) => (
-                                <label
-                                  key={workflow.id}
-                                  className="flex items-start gap-3 rounded-xl px-2 py-2 hover:bg-secondary/40"
-                                >
-                                  <Checkbox
-                                    checked={draft.workflowIds.includes(workflow.id)}
-                                    onCheckedChange={(checked) =>
-                                      toggleWorkflow(workflow.id, checked === true)
-                                    }
-                                  />
-                                  <div>
-                                    <p className="text-sm font-semibold text-foreground">{workflow.title}</p>
-                                    <p className="text-xs text-muted-foreground">{workflow.goal}</p>
-                                  </div>
-                                </label>
-                              ))}
-                              {draftWorkflows.length === 0 ? (
-                                <EmptyState
-                                  icon={PlayCircle}
-                                  title="No workflows in this scenario"
-                                  description="Choose another scenario or add workflows before linking this project."
-                                />
-                              ) : null}
-                            </div>
-                          </div>
-
-                          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/7 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                              Selected workflow set
-                            </p>
-                            <div className="mt-3 space-y-3">
-                              {linkedWorkflows.map((workflow) => (
-                                <div
-                                  key={workflow.id}
-                                  className="rounded-xl border border-border/60 bg-background/60 p-3"
-                                >
-                                  <div className="flex items-center justify-between gap-2">
-                                    <p className="text-sm font-semibold text-foreground">{workflow.title}</p>
-                                    <StatusBadge status={workflow.status} />
-                                  </div>
-                                  <p className="mt-2 text-xs text-muted-foreground">{workflow.frequency}</p>
-                                </div>
-                              ))}
-                              {linkedWorkflows.length === 0 ? (
-                                <p className="text-sm text-muted-foreground">
-                                  Select at least one workflow so the project has a real execution boundary.
-                                </p>
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap justify-end gap-2 border-t border-border/60 pt-4">
-                          <Button variant="outline" onClick={cancelEditing}>
-                            Cancel
-                          </Button>
-                          <Button
-                            onClick={handleSave}
-                            disabled={
-                              !draft.name.trim() ||
-                              !draft.description.trim() ||
-                              !draft.nextAction.trim() ||
-                              draft.workflowIds.length === 0
+                          <Select
+                            value={draft.priority}
+                            onValueChange={(value) =>
+                              setDraft((current) => ({ ...current, priority: value as PriorityLevel }))
                             }
                           >
-                            {draft.id ? "Save project" : "Create project"}
-                          </Button>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select priority" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="high">High</SelectItem>
+                              <SelectItem value="medium">Medium</SelectItem>
+                              <SelectItem value="low">Low</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                          Description
+                        </p>
+                        <Textarea
+                          value={draft.description}
+                          onChange={(event) =>
+                            setDraft((current) => ({ ...current, description: event.target.value }))
+                          }
+                          placeholder="What is this project trying to move forward?"
+                          className="min-h-24"
+                        />
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                            Scenario
+                          </p>
+                          <Select
+                            value={draft.scenarioId}
+                            onValueChange={(value) =>
+                              setDraft((current) => ({
+                                ...current,
+                                scenarioId: value,
+                                workflowIds: current.workflowIds.filter((workflowId) =>
+                                  WORKFLOWS.some(
+                                    (workflow) => workflow.id === workflowId && workflow.scenarioId === value
+                                  )
+                                ),
+                              }))
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select scenario" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {SCENARIOS.map((scenario) => (
+                                <SelectItem key={scenario.id} value={scenario.id}>
+                                  {scenario.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                            Status
+                          </p>
+                          <Select
+                            value={draft.status}
+                            onValueChange={(value) =>
+                              setDraft((current) => ({ ...current, status: value as ProjectStatus }))
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="active">Active</SelectItem>
+                              <SelectItem value="paused">Paused</SelectItem>
+                              <SelectItem value="completed">Completed</SelectItem>
+                              <SelectItem value="archived">Archived</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                          Next action
+                        </p>
+                        <Input
+                          value={draft.nextAction}
+                          onChange={(event) => setDraft((current) => ({ ...current, nextAction: event.target.value }))}
+                          placeholder="What should happen next?"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                          Owner note
+                        </p>
+                        <Textarea
+                          value={draft.ownerNote}
+                          onChange={(event) => setDraft((current) => ({ ...current, ownerNote: event.target.value }))}
+                          placeholder="Optional note about why this project matters right now."
+                          className="min-h-20"
+                        />
+                      </div>
+
+                      <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+                        <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                              Workflow picker
+                            </p>
+                            <button
+                              onClick={() => onOpenScenario(draft.scenarioId)}
+                              className="text-xs font-medium text-primary transition hover:opacity-80"
+                            >
+                              Open scenario
+                            </button>
+                          </div>
+                          <div className="mt-3 space-y-2">
+                            {draftWorkflows.map((workflow) => (
+                              <label
+                                key={workflow.id}
+                                className="flex items-start gap-3 rounded-xl px-2 py-2 hover:bg-secondary/40"
+                              >
+                                <Checkbox
+                                  checked={draft.workflowIds.includes(workflow.id)}
+                                  onCheckedChange={(checked) => toggleWorkflow(workflow.id, checked === true)}
+                                />
+                                <div>
+                                  <p className="text-sm font-semibold text-foreground">{workflow.title}</p>
+                                  <p className="text-xs text-muted-foreground">{truncate(workflow.goal, 84)}</p>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                            Selected workflow chain
+                          </p>
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            {draft.workflowIds.length > 0 ? (
+                              draft.workflowIds.map((workflowId, index) => {
+                                const workflow = WORKFLOWS.find((item) => item.id === workflowId)
+                                if (!workflow) return null
+
+                                return (
+                                  <div key={workflow.id} className="flex items-center gap-2">
+                                    <div className="rounded-2xl border border-border/60 bg-background/60 px-3 py-2">
+                                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/85">
+                                        Step {index + 1}
+                                      </p>
+                                      <p className="text-sm font-semibold text-foreground">{workflow.title}</p>
+                                    </div>
+                                    {index < draft.workflowIds.length - 1 ? (
+                                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                    ) : null}
+                                  </div>
+                                )
+                              })
+                            ) : (
+                              <p className="text-sm text-muted-foreground">
+                                Select at least one workflow so the project has a real execution boundary.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap justify-end gap-2 border-t border-border/60 pt-4">
+                        <Button variant="outline" onClick={cancelEditing}>
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleSave}
+                          disabled={
+                            !draft.name.trim() ||
+                            !draft.description.trim() ||
+                            !draft.nextAction.trim() ||
+                            draft.workflowIds.length === 0
+                          }
+                        >
+                          {draft.id ? "Save project" : "Create project"}
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
                 )}
+
+                {mode === "view" && !panelProject ? (
+                  <Card className="surface-panel rounded-3xl border-border/60">
+                    <CardContent className="p-8">
+                      <EmptyState
+                        icon={FolderKanban}
+                        title="Select a project"
+                        description="Choose a project from the rail to inspect workflows, outputs, and next actions."
+                      />
+                    </CardContent>
+                  </Card>
+                ) : null}
               </div>
             </div>
           </TabsContent>

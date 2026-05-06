@@ -13,6 +13,7 @@ import {
   completeSessionStep,
   createInitialControlTowerState,
   createWorkflowSession,
+  deleteContext,
   exportControlTowerData,
   finishSession,
   getActiveSessions,
@@ -197,6 +198,13 @@ export function useControlTowerState() {
     }))
   }
 
+  const clearActiveSessionFocus = () => {
+    updateState((currentState) => ({
+      ...currentState,
+      activeSessionId: undefined,
+    }))
+  }
+
   const resumeWorkflowSession = (sessionId: string, resumeNote: string) => {
     updateState((currentState) => ({
       ...currentState,
@@ -354,6 +362,13 @@ export function useControlTowerState() {
     }))
   }
 
+  const removeContextRecord = (contextId: string) => {
+    updateState((currentState) => ({
+      ...currentState,
+      contexts: deleteContext(currentState.contexts, contextId),
+    }))
+  }
+
   const saveProject = (params: {
     id?: string
     name: string
@@ -490,6 +505,7 @@ export function useControlTowerState() {
     selectWorkflow,
     startWorkflowSession,
     setActiveSession,
+    clearActiveSessionFocus,
     resumeWorkflowSession,
     moveActiveStep,
     jumpToStep,
@@ -501,6 +517,7 @@ export function useControlTowerState() {
     finishActiveSession,
     saveSessionSummary,
     createContextRecord,
+    removeContextRecord,
     saveProject,
     updateProjectStatus,
     createReview,

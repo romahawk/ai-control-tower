@@ -21,6 +21,7 @@ export const CONTEXT_RECORDS: ContextRecord[] = [
     content:
       "Optimize for learning speed, not elegance. Avoid building too early, prefer manual tests first, and only widen scope if evidence clearly supports it.",
     type: "business",
+    projectId: "project-ai-control-tower",
     scenarioId: "product-development",
     tags: ["solo-founder", "validation", "constraints"],
     createdAt: now,
@@ -32,6 +33,7 @@ export const CONTEXT_RECORDS: ContextRecord[] = [
     content:
       "The strongest near-term opportunities are products that help solo operators, technical product people, or AI-heavy builders reduce decision drag and execution overhead.",
     type: "customer",
+    projectId: "project-ai-control-tower",
     scenarioId: "product-development",
     workflowId: "pd-idea-intake",
     tags: ["icp", "founder", "product"],
@@ -44,6 +46,7 @@ export const CONTEXT_RECORDS: ContextRecord[] = [
     content:
       "Do not carry more than one primary, one support, and one maintenance track per week. Excess parallelism creates false urgency and weak execution.",
     type: "decision",
+    projectId: "project-weekly-focus-os",
     scenarioId: "life-strategy",
     workflowId: "weekly-focus-reset",
     tags: ["focus", "review"],

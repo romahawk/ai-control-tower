@@ -54,6 +54,7 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
     selectWorkflow,
     startWorkflowSession,
     setActiveSession,
+    clearActiveSessionFocus,
     resumeWorkflowSession,
     moveActiveStep,
     jumpToStep,
@@ -65,6 +66,7 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
     finishActiveSession,
     saveSessionSummary,
     createContextRecord,
+    removeContextRecord,
     createReview,
     saveQuickCapture,
     downloadExport,
@@ -150,6 +152,7 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             scenarioWorkflows={scenarioWorkflows}
             sessions={state.sessions}
             activeSessions={activeSessions}
+            activeSession={activeSession}
             quickCaptures={state.quickCaptures}
             recentOutputs={recentOutputs}
             recentReviews={reviews}
@@ -158,6 +161,7 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             onOpenProject={openProject}
             onOpenWorkflow={openWorkflow}
             onStartWorkflowSession={startWorkflowSession}
+            onResetFocus={clearActiveSessionFocus}
             onQuickCapture={saveQuickCapture}
           />
         )
@@ -169,6 +173,7 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             projects={projects}
             sessions={state.sessions}
             recentOutputs={recentOutputs}
+            contexts={state.contexts}
             onSelectProject={selectProject}
             onOpenWorkflows={() => onNavigate("workflows")}
             onOpenScenario={(scenarioId) => {
@@ -177,6 +182,8 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             }}
             onSaveProject={saveProject}
             onUpdateProjectStatus={updateProjectStatus}
+            onSaveContext={createContextRecord}
+            onDeleteContext={removeContextRecord}
           />
         )
       case "scenarios":
@@ -207,9 +214,11 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
         return (
           <ContextManager
             selectedScenario={selectedScenario}
+            selectedProject={selectedProject}
             selectedWorkflow={selectedWorkflow}
             contexts={state.contexts}
             onSaveContext={createContextRecord}
+            onDeleteContext={removeContextRecord}
           />
         )
       case "tools":
@@ -224,6 +233,8 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
         return (
           <WorkflowLibrary
             selectedScenario={selectedScenario}
+            selectedProject={selectedProject}
+            scenarioProjects={scenarioProjects}
             workflows={scenarioWorkflows}
             selectedWorkflow={selectedWorkflow}
             allSessions={state.sessions}
@@ -235,6 +246,7 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             stepContexts={stepContexts}
             executionPack={executionPack}
             onSelectWorkflow={selectWorkflow}
+            onOpenRunner={() => onNavigate("execution")}
             onStartWorkflowSession={startWorkflowSession}
             onSetActiveSession={setActiveSession}
             onResumeWorkflowSession={resumeWorkflowSession}

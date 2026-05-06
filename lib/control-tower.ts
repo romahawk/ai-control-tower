@@ -108,8 +108,15 @@ export function getContextsForStep(
   workflow: Workflow,
   step?: WorkflowStep
 ): ContextRecord[] {
+  const relatedProjectIds = state.projects
+    .filter((project) => project.workflowIds.includes(workflow.id))
+    .map((project) => project.id)
+
   return state.contexts.filter((context) => {
     if (step?.id && context.stepId === step.id) {
+      return true
+    }
+    if (context.projectId && relatedProjectIds.includes(context.projectId)) {
       return true
     }
     if (context.workflowId === workflow.id) {
@@ -117,6 +124,20 @@ export function getContextsForStep(
     }
     return context.scenarioId === workflow.scenarioId
   })
+}
+
+export function getProjectContextRecords(state: ControlTowerState, project: Project) {
+  return state.contexts
+    .filter((context) => {
+      if (context.projectId === project.id) {
+        return true
+      }
+      if (context.workflowId && project.workflowIds.includes(context.workflowId)) {
+        return true
+      }
+      return context.scenarioId === project.scenarioId
+    })
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
 }
 
 export function getPromptsForStep(workflow: Workflow, step?: WorkflowStep) {
@@ -463,6 +484,10 @@ export function upsertContext(
     },
     ...contexts,
   ]
+}
+
+export function deleteContext(contexts: ContextRecord[], contextId: string) {
+  return contexts.filter((context) => context.id !== contextId)
 }
 
 export function buildExecutionPack(

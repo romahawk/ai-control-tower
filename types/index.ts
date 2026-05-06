@@ -139,6 +139,7 @@ export interface ContextRecord {
   title: string
   content: string
   type: ContextType
+  projectId?: string
   scenarioId?: string
   workflowId?: string
   stepId?: string
