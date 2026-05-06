@@ -17,11 +17,12 @@ interface TopBarProps {
   selectedScenario: Scenario
   scenarios: Scenario[]
   onSelectScenario: (scenarioId: string) => void
-  onNewAction: (kind: "workflow" | "prompt" | "review" | "scenario" | "capture") => void
+  onNewAction: (kind: "workflow" | "project" | "prompt" | "review" | "scenario" | "capture") => void
 }
 
 const VIEW_LABELS: Record<ViewType, string> = {
   dashboard: "Control Tower",
+  projects: "Projects",
   scenarios: "Scenarios",
   prompts: "Prompt Library",
   execution: "Legacy Execution Panel",

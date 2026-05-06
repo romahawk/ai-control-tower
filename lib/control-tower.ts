@@ -1,4 +1,5 @@
 import { CONTEXT_RECORDS } from "@/data/contexts"
+import { PROJECTS } from "@/data/projects"
 import { PROMPTS } from "@/data/prompts"
 import { SCENARIOS } from "@/data/scenarios"
 import { TOOLS } from "@/data/tools"
@@ -8,6 +9,8 @@ import type {
   ContextRecord,
   ControlTowerState,
   OutputRecord,
+  Project,
+  ProjectStatus,
   QuickCaptureRecord,
   QuickCaptureType,
   ReviewRecord,
@@ -32,7 +35,9 @@ export function createInitialControlTowerState(): ControlTowerState {
     version: CONTROL_TOWER_DATA_VERSION,
     selectedScenarioId: defaultScenario?.id ?? "",
     selectedWorkflowId: defaultWorkflow?.id ?? "",
+    selectedProjectId: PROJECTS[0]?.id,
     activeSessionId: undefined,
+    projects: PROJECTS,
     sessions: [],
     contexts: CONTEXT_RECORDS,
     reviews: [],
@@ -52,9 +57,14 @@ export function sanitizeState(input: ControlTowerState): ControlTowerState {
     version: CONTROL_TOWER_DATA_VERSION,
     selectedScenarioId: selectedScenario?.id ?? fallback.selectedScenarioId,
     selectedWorkflowId: selectedWorkflow?.id ?? fallback.selectedWorkflowId,
+    selectedProjectId:
+      input.projects?.some((project) => project.id === input.selectedProjectId)
+        ? input.selectedProjectId
+        : fallback.selectedProjectId,
     activeSessionId: input.sessions.some((session) => session.id === input.activeSessionId)
       ? input.activeSessionId
       : fallback.activeSessionId,
+    projects: input.projects?.length ? input.projects : fallback.projects,
     sessions: input.sessions ?? [],
     contexts: input.contexts?.length ? input.contexts : fallback.contexts,
     reviews: input.reviews ?? [],
@@ -81,6 +91,10 @@ export function getScenarioById(scenarioId?: string) {
   return SCENARIOS.find((scenario) => scenario.id === scenarioId)
 }
 
+export function getProjectById(projects: Project[], projectId?: string) {
+  return projects.find((project) => project.id === projectId)
+}
+
 export function getWorkflowById(workflowId?: string) {
   return WORKFLOWS.find((workflow) => workflow.id === workflowId)
 }
@@ -94,8 +108,15 @@ export function getContextsForStep(
   workflow: Workflow,
   step?: WorkflowStep
 ): ContextRecord[] {
+  const relatedProjectIds = state.projects
+    .filter((project) => project.workflowIds.includes(workflow.id))
+    .map((project) => project.id)
+
   return state.contexts.filter((context) => {
     if (step?.id && context.stepId === step.id) {
+      return true
+    }
+    if (context.projectId && relatedProjectIds.includes(context.projectId)) {
       return true
     }
     if (context.workflowId === workflow.id) {
@@ -103,6 +124,20 @@ export function getContextsForStep(
     }
     return context.scenarioId === workflow.scenarioId
   })
+}
+
+export function getProjectContextRecords(state: ControlTowerState, project: Project) {
+  return state.contexts
+    .filter((context) => {
+      if (context.projectId === project.id) {
+        return true
+      }
+      if (context.workflowId && project.workflowIds.includes(context.workflowId)) {
+        return true
+      }
+      return context.scenarioId === project.scenarioId
+    })
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
 }
 
 export function getPromptsForStep(workflow: Workflow, step?: WorkflowStep) {
@@ -124,6 +159,71 @@ export function getToolsForStep(step?: WorkflowStep): Tool[] {
 
 function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+export function createProject(
+  input: Pick<Project, "name" | "description" | "priority" | "scenarioId" | "workflowIds" | "nextAction" | "ownerNote">
+): Project {
+  const timestamp = new Date().toISOString()
+
+  return {
+    id: makeId("project"),
+    name: input.name,
+    description: input.description,
+    status: "active",
+    priority: input.priority,
+    scenarioId: input.scenarioId,
+    workflowIds: input.workflowIds,
+    nextAction: input.nextAction,
+    ownerNote: input.ownerNote,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+}
+
+export function upsertProject(
+  projects: Project[],
+  input: Pick<Project, "name" | "description" | "priority" | "scenarioId" | "workflowIds" | "nextAction" | "ownerNote"> & {
+    id?: string
+    status?: ProjectStatus
+  }
+) {
+  if (!input.id) {
+    return [createProject(input), ...projects]
+  }
+
+  const timestamp = new Date().toISOString()
+  return projects.map((project) => {
+    if (project.id !== input.id) {
+      return project
+    }
+
+    const status = input.status ?? project.status
+    return {
+      ...project,
+      ...input,
+      status,
+      updatedAt: timestamp,
+      archivedAt: status === "archived" ? project.archivedAt ?? timestamp : undefined,
+      completedAt: status === "completed" ? project.completedAt ?? timestamp : undefined,
+    }
+  })
+}
+
+export function setProjectStatus(projects: Project[], projectId: string, status: ProjectStatus) {
+  const timestamp = new Date().toISOString()
+
+  return projects.map((project) =>
+    project.id === projectId
+      ? {
+          ...project,
+          status,
+          updatedAt: timestamp,
+          archivedAt: status === "archived" ? project.archivedAt ?? timestamp : undefined,
+          completedAt: status === "completed" ? project.completedAt ?? timestamp : undefined,
+        }
+      : project
+  )
 }
 
 function makeStepExecutions(sessionId: string, workflow: Workflow, timestamp: string): StepExecution[] {
@@ -386,6 +486,10 @@ export function upsertContext(
   ]
 }
 
+export function deleteContext(contexts: ContextRecord[], contextId: string) {
+  return contexts.filter((context) => context.id !== contextId)
+}
+
 export function buildExecutionPack(
   workflow: Workflow,
   step: WorkflowStep,
@@ -568,7 +672,49 @@ export function getScenarioSummary(scenario: Scenario, state: ControlTowerState)
     sessions,
     recentOutputs,
     blockedSessions,
+    projects: getProjectsForScenario(state, scenario.id),
     nextActions: getDeterministicNextActions(state, scenario.id),
+  }
+}
+
+export function getProjectsForScenario(state: ControlTowerState, scenarioId?: string) {
+  return state.projects
+    .filter((project) => !scenarioId || project.scenarioId === scenarioId)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+export function getProjectWorkflowOptions(project: Project) {
+  return WORKFLOWS.filter((workflow) => project.workflowIds.includes(workflow.id))
+}
+
+export function getProjectSessions(state: ControlTowerState, project: Project) {
+  return state.sessions
+    .filter(
+      (session) =>
+        session.scenarioId === project.scenarioId &&
+        project.workflowIds.includes(session.workflowId)
+    )
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+export function getProjectOutputs(state: ControlTowerState, project: Project) {
+  return getProjectSessions(state, project)
+    .flatMap((session) => session.outputs)
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+}
+
+export function getProjectSummary(state: ControlTowerState, project: Project) {
+  const sessions = getProjectSessions(state, project)
+  const outputs = getProjectOutputs(state, project)
+  const blockedSessions = sessions.filter((session) => session.status === "blocked")
+  const activeSessions = sessions.filter((session) => session.status === "active" || session.status === "paused")
+
+  return {
+    sessions,
+    outputs,
+    blockedSessions,
+    activeSessions,
+    workflows: getProjectWorkflowOptions(project),
   }
 }
 

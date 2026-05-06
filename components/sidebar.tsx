@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Command,
   Compass,
+  FolderKanban,
   GitBranch,
   LayoutDashboard,
   Library,
@@ -23,6 +24,7 @@ interface SidebarProps {
 
 const navItems: { id: ViewType; label: string; icon: React.ElementType; badge?: string }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "projects", label: "Projects", icon: FolderKanban, badge: "Phase 2" },
   { id: "scenarios", label: "Scenarios", icon: Compass },
   { id: "workflows", label: "Workflows", icon: GitBranch, badge: "Core" },
   { id: "prompts", label: "Prompts", icon: BookOpen },

@@ -6,6 +6,7 @@ import TopBar from "@/components/top-bar"
 import CommandPalette from "@/components/command-palette"
 import { SCENARIOS } from "@/data/scenarios"
 import { Dashboard } from "@/components/views/dashboard"
+import { ProjectsView } from "@/components/views/projects-view"
 import { PromptLibrary } from "@/components/views/prompt-library"
 import { ExecutionPanel } from "@/components/views/execution-panel"
 import { ContextManager } from "@/components/views/context-manager"
@@ -28,12 +29,16 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
   const [commandOpen, setCommandOpen] = useState(false)
   const {
     state,
+    selectedProject,
     selectedScenario,
     selectedWorkflow,
     activeWorkflow,
     activeSession,
     currentStep,
+    scenarioProjects,
     scenarioWorkflows,
+    projects,
+    selectProject,
     scenarioPrompts,
     scenarioTools,
     stepPrompts,
@@ -43,10 +48,13 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
     recentOutputs,
     nextActions,
     reviews,
+    saveProject,
+    updateProjectStatus,
     selectScenario,
     selectWorkflow,
     startWorkflowSession,
     setActiveSession,
+    clearActiveSessionFocus,
     resumeWorkflowSession,
     moveActiveStep,
     jumpToStep,
@@ -58,6 +66,7 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
     finishActiveSession,
     saveSessionSummary,
     createContextRecord,
+    removeContextRecord,
     createReview,
     saveQuickCapture,
     downloadExport,
@@ -87,7 +96,12 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
     onNavigate("workflows")
   }
 
-  const handleNewAction = (kind: "workflow" | "prompt" | "review" | "scenario" | "capture") => {
+  const openProject = (projectId: string) => {
+    selectProject(projectId)
+    onNavigate("projects")
+  }
+
+  const handleNewAction = (kind: "workflow" | "project" | "prompt" | "review" | "scenario" | "capture") => {
     switch (kind) {
       case "workflow": {
         const defaultWorkflowId = selectedScenario.defaultWorkflowIds?.[0]
@@ -97,6 +111,9 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
         onNavigate("workflows")
         return
       }
+      case "project":
+        onNavigate("projects")
+        return
       case "prompt":
         onNavigate("prompts")
         return
@@ -131,17 +148,42 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
         return (
           <Dashboard
             selectedScenario={selectedScenario}
+            scenarioProjects={scenarioProjects}
             scenarioWorkflows={scenarioWorkflows}
             sessions={state.sessions}
             activeSessions={activeSessions}
+            activeSession={activeSession}
             quickCaptures={state.quickCaptures}
             recentOutputs={recentOutputs}
             recentReviews={reviews}
             nextActions={nextActions}
             onNavigate={onNavigate}
+            onOpenProject={openProject}
             onOpenWorkflow={openWorkflow}
             onStartWorkflowSession={startWorkflowSession}
+            onResetFocus={clearActiveSessionFocus}
             onQuickCapture={saveQuickCapture}
+          />
+        )
+      case "projects":
+        return (
+          <ProjectsView
+            selectedScenario={selectedScenario}
+            selectedProject={selectedProject}
+            projects={projects}
+            sessions={state.sessions}
+            recentOutputs={recentOutputs}
+            contexts={state.contexts}
+            onSelectProject={selectProject}
+            onOpenWorkflows={() => onNavigate("workflows")}
+            onOpenScenario={(scenarioId) => {
+              selectScenario(scenarioId)
+              onNavigate("scenarios")
+            }}
+            onSaveProject={saveProject}
+            onUpdateProjectStatus={updateProjectStatus}
+            onSaveContext={createContextRecord}
+            onDeleteContext={removeContextRecord}
           />
         )
       case "scenarios":
@@ -172,9 +214,11 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
         return (
           <ContextManager
             selectedScenario={selectedScenario}
+            selectedProject={selectedProject}
             selectedWorkflow={selectedWorkflow}
             contexts={state.contexts}
             onSaveContext={createContextRecord}
+            onDeleteContext={removeContextRecord}
           />
         )
       case "tools":
@@ -189,6 +233,8 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
         return (
           <WorkflowLibrary
             selectedScenario={selectedScenario}
+            selectedProject={selectedProject}
+            scenarioProjects={scenarioProjects}
             workflows={scenarioWorkflows}
             selectedWorkflow={selectedWorkflow}
             allSessions={state.sessions}
@@ -200,6 +246,7 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             stepContexts={stepContexts}
             executionPack={executionPack}
             onSelectWorkflow={selectWorkflow}
+            onOpenRunner={() => onNavigate("execution")}
             onStartWorkflowSession={startWorkflowSession}
             onSetActiveSession={setActiveSession}
             onResumeWorkflowSession={resumeWorkflowSession}
