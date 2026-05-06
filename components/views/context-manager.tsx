@@ -11,12 +11,13 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { getContextIcon } from "@/lib/ui-meta"
-import type { ContextRecord, Project, Scenario, Workflow } from "@/types"
+import type { ContextRecord, Project, Scenario, Workflow, WorkflowStep } from "@/types"
 
 interface ContextManagerProps {
   selectedScenario: Scenario
   selectedProject?: Project
   selectedWorkflow: Workflow
+  currentStep?: WorkflowStep
   contexts: ContextRecord[]
   onSaveContext: (
     contextRecord: Omit<ContextRecord, "id" | "createdAt" | "updatedAt"> & {
@@ -30,6 +31,7 @@ export function ContextManager({
   selectedScenario,
   selectedProject,
   selectedWorkflow,
+  currentStep,
   contexts,
   onSaveContext,
   onDeleteContext,
@@ -37,7 +39,7 @@ export function ContextManager({
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
   const [type, setType] = useState<ContextRecord["type"]>("project")
-  const [scope, setScope] = useState<"project" | "workflow" | "scenario">(
+  const [scope, setScope] = useState<"project" | "workflow" | "step" | "scenario">(
     selectedProject ? "project" : "workflow"
   )
   const [editingContextId, setEditingContextId] = useState<string | undefined>()
@@ -47,11 +49,13 @@ export function ContextManager({
     return contexts.filter((context) =>
       scope === "project"
         ? context.projectId === selectedProject?.id
+        : scope === "step"
+        ? context.stepId === currentStep?.id || context.workflowId === selectedWorkflow.id || context.projectId === selectedProject?.id
         : scope === "workflow"
         ? context.workflowId === selectedWorkflow.id || context.scenarioId === selectedScenario.id
         : context.scenarioId === selectedScenario.id
     )
-  }, [contexts, scope, selectedProject?.id, selectedScenario.id, selectedWorkflow.id])
+  }, [contexts, currentStep?.id, scope, selectedProject?.id, selectedScenario.id, selectedWorkflow.id])
   const filteredContexts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     if (!normalizedQuery) {
@@ -76,6 +80,7 @@ export function ContextManager({
       projectId: scope === "project" ? selectedProject?.id : undefined,
       scenarioId: selectedScenario.id,
       workflowId: scope === "workflow" ? selectedWorkflow.id : undefined,
+      stepId: scope === "step" ? currentStep?.id : undefined,
       tags: [selectedScenario.category],
     })
     setTitle("")
@@ -108,6 +113,8 @@ export function ContextManager({
                 Project: <span className="font-medium text-foreground">{selectedProject?.name ?? "None selected"}</span>
                 <br />
                 Workflow: <span className="font-medium text-foreground">{selectedWorkflow.title}</span>
+                <br />
+                Step: <span className="font-medium text-foreground">{currentStep?.title ?? "None selected"}</span>
               </div>
               <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Context title" />
               <Textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="What context should follow this scenario or workflow?" className="min-h-32" />
@@ -124,6 +131,11 @@ export function ContextManager({
                 {selectedProject ? (
                   <Button variant={scope === "project" ? "default" : "outline"} size="sm" onClick={() => setScope("project")}>
                     Project scope
+                  </Button>
+                ) : null}
+                {currentStep ? (
+                  <Button variant={scope === "step" ? "default" : "outline"} size="sm" onClick={() => setScope("step")}>
+                    Step scope
                   </Button>
                 ) : null}
                 <Button variant={scope === "workflow" ? "default" : "outline"} size="sm" onClick={() => setScope("workflow")}>
@@ -149,6 +161,8 @@ export function ContextManager({
               title={
                 scope === "project"
                   ? "Project context"
+                  : scope === "step"
+                    ? "Step context"
                   : scope === "workflow"
                     ? "Workflow context"
                     : "Scenario context"
@@ -196,6 +210,11 @@ export function ContextManager({
                               {WORKFLOWS.find((workflow) => workflow.id === context.workflowId)?.title ?? context.workflowId}
                             </span>
                           ) : null}
+                          {context.stepId ? (
+                            <span className="rounded-full border border-border bg-secondary/30 px-2.5 py-1">
+                              {currentStep?.id === context.stepId ? currentStep.title : context.stepId}
+                            </span>
+                          ) : null}
                           <span className="rounded-full border border-border bg-secondary/30 px-2.5 py-1">
                             Updated {new Date(context.updatedAt).toLocaleDateString()}
                           </span>
@@ -212,6 +231,8 @@ export function ContextManager({
                             setType(context.type)
                             if (context.projectId) {
                               setScope("project")
+                            } else if (context.stepId) {
+                              setScope("step")
                             } else if (context.workflowId) {
                               setScope("workflow")
                             } else {

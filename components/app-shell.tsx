@@ -48,8 +48,13 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
     recentOutputs,
     nextActions,
     reviews,
+    goals,
     saveProject,
     updateProjectStatus,
+    selectedProjectGoals,
+    saveGoal,
+    updateGoalStatus,
+    getWorkflowHealth,
     selectScenario,
     selectWorkflow,
     startWorkflowSession,
@@ -157,6 +162,8 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             recentOutputs={recentOutputs}
             recentReviews={reviews}
             nextActions={nextActions}
+            goals={goals}
+            getWorkflowHealth={getWorkflowHealth}
             onNavigate={onNavigate}
             onOpenProject={openProject}
             onOpenWorkflow={openWorkflow}
@@ -174,6 +181,7 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             sessions={state.sessions}
             recentOutputs={recentOutputs}
             contexts={state.contexts}
+            goals={selectedProjectGoals}
             onSelectProject={selectProject}
             onOpenWorkflows={() => onNavigate("workflows")}
             onOpenScenario={(scenarioId) => {
@@ -182,6 +190,8 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             }}
             onSaveProject={saveProject}
             onUpdateProjectStatus={updateProjectStatus}
+            onSaveGoal={saveGoal}
+            onUpdateGoalStatus={updateGoalStatus}
             onSaveContext={createContextRecord}
             onDeleteContext={removeContextRecord}
           />
@@ -216,6 +226,7 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             selectedScenario={selectedScenario}
             selectedProject={selectedProject}
             selectedWorkflow={selectedWorkflow}
+            currentStep={currentStep}
             contexts={state.contexts}
             onSaveContext={createContextRecord}
             onDeleteContext={removeContextRecord}
@@ -244,6 +255,8 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             stepPrompts={stepPrompts}
             stepTools={stepTools}
             stepContexts={stepContexts}
+            goals={goals}
+            getWorkflowHealth={getWorkflowHealth}
             executionPack={executionPack}
             onSelectWorkflow={selectWorkflow}
             onOpenRunner={() => onNavigate("execution")}

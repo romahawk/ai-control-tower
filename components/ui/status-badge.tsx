@@ -16,6 +16,10 @@ const toneClasses = {
   draft: "border-border bg-secondary/40 text-muted-foreground",
   review: "border-knowledge/25 bg-knowledge/12 text-knowledge",
   archived: "border-border bg-secondary/30 text-muted-foreground",
+  "at-risk": "border-warning/25 bg-warning/12 text-warning",
+  stale: "border-border bg-secondary/40 text-muted-foreground",
+  misaligned: "border-knowledge/25 bg-knowledge/12 text-knowledge",
+  healthy: "border-success/25 bg-success/12 text-success",
   neutral: "border-border bg-secondary/30 text-foreground",
 } as const
 

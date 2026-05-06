@@ -40,6 +40,10 @@ export function getStatusMeta(
     | "waiting"
     | "done"
     | "blocked"
+    | "healthy"
+    | "at-risk"
+    | "stale"
+    | "misaligned"
 ) {
   const record: Record<string, { label: string; tone: StatusTone; icon: LucideIcon }> = {
     active: { label: "Active", tone: "active", icon: PlayCircle },
@@ -58,6 +62,10 @@ export function getStatusMeta(
     clarify: { label: "Clarify", tone: "review", icon: BookOpen },
     waiting: { label: "Waiting", tone: "pending", icon: PauseCircle },
     done: { label: "Done", tone: "completed", icon: CheckCircle2 },
+    healthy: { label: "Healthy", tone: "completed", icon: CheckCircle2 },
+    "at-risk": { label: "At Risk", tone: "pending", icon: AlertTriangle },
+    stale: { label: "Stale", tone: "draft", icon: CircleDashed },
+    misaligned: { label: "Misaligned", tone: "review", icon: AlertTriangle },
   }
 
   return record[status] ?? { label: status, tone: "neutral" as const, icon: CircleDashed }

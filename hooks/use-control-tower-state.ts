@@ -21,6 +21,7 @@ import {
   getContextsForStep,
   getCurrentStepIndex,
   getDeterministicNextActions,
+  getGoalsForProject,
   getProjectById,
   getProjectsForScenario,
   getProjectSummary,
@@ -33,6 +34,7 @@ import {
   getStepExecution,
   getToolsForStep,
   getWorkflowById,
+  getWorkflowHealth,
   importControlTowerData,
   loadControlTowerState,
   pauseSession,
@@ -44,8 +46,10 @@ import {
   upsertContext,
   upsertProject,
   setProjectStatus,
+  setGoalStatus,
+  upsertGoal,
 } from "@/lib/control-tower"
-import type { ContextRecord, ControlTowerState, OutputType, ProjectStatus, ReviewType } from "@/types"
+import type { ContextRecord, ControlTowerState, GoalStatus, OutputType, ProjectStatus, ReviewType } from "@/types"
 
 export function useControlTowerState() {
   const [state, setState] = useState<ControlTowerState>(createInitialControlTowerState)
@@ -117,6 +121,11 @@ export function useControlTowerState() {
 
   const selectedProjectSummary = useMemo(
     () => (selectedProject ? getProjectSummary(state, selectedProject) : null),
+    [selectedProject, state]
+  )
+
+  const selectedProjectGoals = useMemo(
+    () => (selectedProject ? getGoalsForProject(state, selectedProject.id) : []),
     [selectedProject, state]
   )
 
@@ -406,6 +415,32 @@ export function useControlTowerState() {
     }))
   }
 
+  const saveGoal = (params: {
+    id?: string
+    title: string
+    description: string
+    status: GoalStatus
+    scenarioId: string
+    projectId: string
+    workflowIds: string[]
+    targetValue: number
+    currentValue: number
+    unit: string
+    dueDate?: string
+  }) => {
+    updateState((currentState) => ({
+      ...currentState,
+      goals: upsertGoal(currentState.goals, params),
+    }))
+  }
+
+  const updateGoalStatus = (goalId: string, status: GoalStatus) => {
+    updateState((currentState) => ({
+      ...currentState,
+      goals: setGoalStatus(currentState.goals, goalId, status),
+    }))
+  }
+
   const createReview = (type: ReviewType, options?: { scenarioId?: string; workflowId?: string }) => {
     const review = buildReviewRecord(type, state, options)
     updateState((currentState) => ({
@@ -497,9 +532,15 @@ export function useControlTowerState() {
     nextActions,
     reviewSummary,
     selectedProjectSummary,
+    selectedProjectGoals,
     reviews: state.reviews,
     quickCaptures: state.quickCaptures,
     projects: state.projects,
+    goals: state.goals,
+    getWorkflowHealth: (workflowId: string) => {
+      const workflow = getWorkflowById(workflowId)
+      return workflow ? getWorkflowHealth(state, workflow) : undefined
+    },
     selectProject,
     selectScenario,
     selectWorkflow,
@@ -520,6 +561,8 @@ export function useControlTowerState() {
     removeContextRecord,
     saveProject,
     updateProjectStatus,
+    saveGoal,
+    updateGoalStatus,
     createReview,
     saveQuickCapture,
     downloadExport,

@@ -22,6 +22,7 @@ import { StatusBadge } from "@/components/ui/status-badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getLatestSessionForWorkflow, getWorkflowById } from "@/lib/control-tower"
 import type {
+  GoalRecord,
   OutputRecord,
   Project,
   QuickCaptureRecord,
@@ -43,6 +44,8 @@ interface DashboardProps {
   recentOutputs: OutputRecord[]
   recentReviews: ReviewRecord[]
   nextActions: string[]
+  goals: GoalRecord[]
+  getWorkflowHealth: (workflowId: string) => { status: string; reason: string } | undefined
   onNavigate: (view: ViewType) => void
   onOpenProject: (projectId: string) => void
   onOpenWorkflow: (workflowId: string) => void
@@ -102,6 +105,8 @@ export function Dashboard({
   recentOutputs,
   recentReviews,
   nextActions,
+  goals,
+  getWorkflowHealth,
   onNavigate,
   onOpenProject,
   onOpenWorkflow,
@@ -126,6 +131,11 @@ export function Dashboard({
   const recentOutputSlice = recentOutputs.slice(0, 3)
   const scenarioActiveProjects = scenarioProjects.filter((project) => project.status === "active")
   const scenarioActiveSessions = activeSessions.filter((session) => session.scenarioId === selectedScenario.id)
+  const scenarioGoals = goals.filter((goal) => goal.scenarioId === selectedScenario.id)
+  const unhealthyWorkflowCount = scenarioWorkflows.filter((workflow) => {
+    const health = getWorkflowHealth(workflow.id)
+    return health && health.status !== "healthy"
+  }).length
 
   const boardItems = useMemo(() => {
     const items = scenarioWorkflows.map((workflow) => {
@@ -181,6 +191,21 @@ export function Dashboard({
     .slice(0, 3)
 
   const openLoopItems = [
+    ...scenarioWorkflows
+      .map((workflow) => {
+        const health = getWorkflowHealth(workflow.id)
+        const tone =
+          health?.status === "blocked"
+            ? "blocked"
+            : health?.status === "at-risk" || health?.status === "stale"
+              ? "waiting"
+              : "review"
+        return health && health.status !== "healthy"
+          ? { id: `${workflow.id}-${health.status}`, label: `${workflow.title}: ${health.reason}`, tone }
+          : null
+      })
+      .filter((item): item is { id: string; label: string; tone: "blocked" | "waiting" | "review" } => !!item)
+      .slice(0, 2),
     ...blockedItems.map((item) => ({
       id: item.session.id,
       label: `${item.workflow.title} is blocked`,
@@ -233,6 +258,7 @@ export function Dashboard({
                           <p className="text-lg font-semibold tracking-tight text-foreground">Today&apos;s Focus</p>
                           <ScenarioBadge scenario={selectedScenario} />
                           {currentProject ? <StatusBadge status={currentProject.status} /> : null}
+                          {currentWorkflow ? getWorkflowHealth(currentWorkflow.id) ? <StatusBadge status={getWorkflowHealth(currentWorkflow.id)!.status} /> : null : null}
                         </div>
                         <div className="mt-3 space-y-2">
                           <p className="text-xl font-semibold text-foreground">
@@ -240,6 +266,11 @@ export function Dashboard({
                           </p>
                           {currentProject ? (
                             <p className="text-sm text-muted-foreground">{currentProject.name}</p>
+                          ) : null}
+                          {scenarioGoals[0] ? (
+                            <p className="text-sm text-foreground">
+                              <span className="text-muted-foreground">Goal:</span> {scenarioGoals[0].title}
+                            </p>
                           ) : null}
                           <p className="text-sm text-foreground">
                             <span className="text-muted-foreground">Next:</span> {focusNextAction}
@@ -281,12 +312,14 @@ export function Dashboard({
                 </Card>
 
                 <div className="flex flex-wrap gap-2">
-                  {[
-                    { label: "Open loops", value: openLoopItems.length, action: () => onNavigate("reviews") },
-                    { label: "Active workflows", value: scenarioActiveSessions.length, action: () => onNavigate("workflows") },
-                    { label: "Active projects", value: scenarioActiveProjects.length, action: () => onNavigate("projects") },
-                    { label: "Recent outputs", value: recentOutputSlice.length },
-                  ].map((chip) =>
+                    {[
+                      { label: "Open loops", value: openLoopItems.length, action: () => onNavigate("reviews") },
+                      { label: "Active workflows", value: scenarioActiveSessions.length, action: () => onNavigate("workflows") },
+                      { label: "Active projects", value: scenarioActiveProjects.length, action: () => onNavigate("projects") },
+                      { label: "Active goals", value: scenarioGoals.filter((goal) => goal.status === "active").length },
+                      { label: "Workflow health", value: unhealthyWorkflowCount },
+                      { label: "Recent outputs", value: recentOutputSlice.length },
+                    ].map((chip) =>
                     chip.action ? (
                       <button
                         key={chip.label}
