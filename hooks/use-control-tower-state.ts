@@ -8,9 +8,12 @@ import {
   addOutputToSession,
   blockSession,
   buildReviewRecord,
+  createProject,
+  createQuickCapture,
   completeSessionStep,
   createInitialControlTowerState,
   createWorkflowSession,
+  deleteContext,
   exportControlTowerData,
   finishSession,
   getActiveSessions,
@@ -18,6 +21,10 @@ import {
   getContextsForStep,
   getCurrentStepIndex,
   getDeterministicNextActions,
+  getGoalsForProject,
+  getProjectById,
+  getProjectsForScenario,
+  getProjectSummary,
   getPromptsForStep,
   getRecentOutputs,
   getScenarioById,
@@ -27,6 +34,7 @@ import {
   getStepExecution,
   getToolsForStep,
   getWorkflowById,
+  getWorkflowHealth,
   importControlTowerData,
   loadControlTowerState,
   pauseSession,
@@ -36,8 +44,12 @@ import {
   setSessionCurrentStep,
   updateSessionSummary,
   upsertContext,
+  upsertProject,
+  setProjectStatus,
+  setGoalStatus,
+  upsertGoal,
 } from "@/lib/control-tower"
-import type { ContextRecord, ControlTowerState, OutputType, ReviewType } from "@/types"
+import type { ContextRecord, ControlTowerState, GoalStatus, OutputType, ProjectStatus, ReviewType } from "@/types"
 
 export function useControlTowerState() {
   const [state, setState] = useState<ControlTowerState>(createInitialControlTowerState)
@@ -52,6 +64,10 @@ export function useControlTowerState() {
 
   const selectedScenario =
     getScenarioById(state.selectedScenarioId) ?? SCENARIOS[0]
+  const selectedProject =
+    getProjectById(state.projects, state.selectedProjectId) ??
+    getProjectsForScenario(state, selectedScenario?.id)[0] ??
+    state.projects[0]
   const selectedWorkflow =
     getWorkflowById(state.selectedWorkflowId) ??
     getScenarioWorkflowOptions(selectedScenario?.id ?? "")[0] ??
@@ -66,6 +82,11 @@ export function useControlTowerState() {
   const scenarioWorkflows = useMemo(
     () => getScenarioWorkflowOptions(selectedScenario?.id ?? ""),
     [selectedScenario?.id]
+  )
+
+  const scenarioProjects = useMemo(
+    () => getProjectsForScenario(state, selectedScenario?.id),
+    [selectedScenario?.id, state]
   )
 
   const scenarioPrompts = useMemo(
@@ -98,6 +119,16 @@ export function useControlTowerState() {
     [selectedScenario, state]
   )
 
+  const selectedProjectSummary = useMemo(
+    () => (selectedProject ? getProjectSummary(state, selectedProject) : null),
+    [selectedProject, state]
+  )
+
+  const selectedProjectGoals = useMemo(
+    () => (selectedProject ? getGoalsForProject(state, selectedProject.id) : []),
+    [selectedProject, state]
+  )
+
   const updateState = (updater: (currentState: ControlTowerState) => ControlTowerState) => {
     setState((currentState) => updater(currentState))
   }
@@ -108,7 +139,26 @@ export function useControlTowerState() {
       return {
         ...currentState,
         selectedScenarioId: scenarioId,
+        selectedProjectId:
+          currentState.projects.find((project) => project.scenarioId === scenarioId)?.id ??
+          currentState.selectedProjectId,
         selectedWorkflowId: workflows[0]?.id ?? currentState.selectedWorkflowId,
+      }
+    })
+  }
+
+  const selectProject = (projectId: string) => {
+    updateState((currentState) => {
+      const project = getProjectById(currentState.projects, projectId)
+      if (!project) {
+        return currentState
+      }
+
+      return {
+        ...currentState,
+        selectedProjectId: project.id,
+        selectedScenarioId: project.scenarioId,
+        selectedWorkflowId: project.workflowIds[0] ?? currentState.selectedWorkflowId,
       }
     })
   }
@@ -123,6 +173,10 @@ export function useControlTowerState() {
       ...currentState,
       selectedWorkflowId: workflowId,
       selectedScenarioId: workflow.scenarioId,
+      selectedProjectId:
+        currentState.projects.find(
+          (project) => project.scenarioId === workflow.scenarioId && project.workflowIds.includes(workflow.id)
+        )?.id ?? currentState.selectedProjectId,
     }))
   }
 
@@ -136,6 +190,10 @@ export function useControlTowerState() {
     updateState((currentState) => ({
       ...currentState,
       selectedScenarioId: workflow.scenarioId,
+      selectedProjectId:
+        currentState.projects.find(
+          (project) => project.scenarioId === workflow.scenarioId && project.workflowIds.includes(workflow.id)
+        )?.id ?? currentState.selectedProjectId,
       selectedWorkflowId: workflow.id,
       activeSessionId: session.id,
       sessions: [session, ...currentState.sessions],
@@ -146,6 +204,13 @@ export function useControlTowerState() {
     updateState((currentState) => ({
       ...currentState,
       activeSessionId: sessionId,
+    }))
+  }
+
+  const clearActiveSessionFocus = () => {
+    updateState((currentState) => ({
+      ...currentState,
+      activeSessionId: undefined,
     }))
   }
 
@@ -306,6 +371,76 @@ export function useControlTowerState() {
     }))
   }
 
+  const removeContextRecord = (contextId: string) => {
+    updateState((currentState) => ({
+      ...currentState,
+      contexts: deleteContext(currentState.contexts, contextId),
+    }))
+  }
+
+  const saveProject = (params: {
+    id?: string
+    name: string
+    description: string
+    priority: "low" | "medium" | "high"
+    scenarioId: string
+    workflowIds: string[]
+    nextAction: string
+    ownerNote?: string
+    status?: ProjectStatus
+  }) => {
+    updateState((currentState) => {
+      const projectExists = params.id
+        ? currentState.projects.some((project) => project.id === params.id)
+        : false
+      const nextProjects = upsertProject(currentState.projects, params)
+      const selectedProjectId = projectExists
+        ? currentState.selectedProjectId
+        : nextProjects[0]?.id ?? currentState.selectedProjectId
+
+      return {
+        ...currentState,
+        projects: nextProjects,
+        selectedProjectId,
+        selectedScenarioId: params.scenarioId,
+        selectedWorkflowId: params.workflowIds[0] ?? currentState.selectedWorkflowId,
+      }
+    })
+  }
+
+  const updateProjectStatus = (projectId: string, status: ProjectStatus) => {
+    updateState((currentState) => ({
+      ...currentState,
+      projects: setProjectStatus(currentState.projects, projectId, status),
+    }))
+  }
+
+  const saveGoal = (params: {
+    id?: string
+    title: string
+    description: string
+    status: GoalStatus
+    scenarioId: string
+    projectId: string
+    workflowIds: string[]
+    targetValue: number
+    currentValue: number
+    unit: string
+    dueDate?: string
+  }) => {
+    updateState((currentState) => ({
+      ...currentState,
+      goals: upsertGoal(currentState.goals, params),
+    }))
+  }
+
+  const updateGoalStatus = (goalId: string, status: GoalStatus) => {
+    updateState((currentState) => ({
+      ...currentState,
+      goals: setGoalStatus(currentState.goals, goalId, status),
+    }))
+  }
+
   const createReview = (type: ReviewType, options?: { scenarioId?: string; workflowId?: string }) => {
     const review = buildReviewRecord(type, state, options)
     updateState((currentState) => ({
@@ -313,6 +448,15 @@ export function useControlTowerState() {
       reviews: [review, ...currentState.reviews],
     }))
     return review
+  }
+
+  const saveQuickCapture = (params: {
+    type: "task" | "prompt" | "idea" | "decision"
+    content: string
+    scenarioId?: string
+    workflowId?: string
+  }) => {
+    updateState((currentState) => createQuickCapture(currentState, params))
   }
 
   const downloadExport = () => {
@@ -359,6 +503,7 @@ export function useControlTowerState() {
     setState({
       ...demoState,
       selectedScenarioId: "product-development",
+      selectedProjectId: demoState.projects.find((project) => project.scenarioId === "product-development")?.id,
       selectedWorkflowId: ideaWorkflow.id,
       activeSessionId: demoSession.id,
       sessions: [demoSessionWithOutput],
@@ -367,12 +512,14 @@ export function useControlTowerState() {
 
   return {
     state,
+    selectedProject,
     selectedScenario,
     selectedWorkflow,
     activeWorkflow,
     activeSession,
     currentStep,
     scenarioWorkflows,
+    scenarioProjects,
     scenarioPrompts,
     scenarioTools,
     stepPrompts: activeWorkflow && currentStep ? getPromptsForStep(activeWorkflow, currentStep) : [],
@@ -384,11 +531,22 @@ export function useControlTowerState() {
     recentOutputs,
     nextActions,
     reviewSummary,
+    selectedProjectSummary,
+    selectedProjectGoals,
     reviews: state.reviews,
+    quickCaptures: state.quickCaptures,
+    projects: state.projects,
+    goals: state.goals,
+    getWorkflowHealth: (workflowId: string) => {
+      const workflow = getWorkflowById(workflowId)
+      return workflow ? getWorkflowHealth(state, workflow) : undefined
+    },
+    selectProject,
     selectScenario,
     selectWorkflow,
     startWorkflowSession,
     setActiveSession,
+    clearActiveSessionFocus,
     resumeWorkflowSession,
     moveActiveStep,
     jumpToStep,
@@ -400,7 +558,13 @@ export function useControlTowerState() {
     finishActiveSession,
     saveSessionSummary,
     createContextRecord,
+    removeContextRecord,
+    saveProject,
+    updateProjectStatus,
+    saveGoal,
+    updateGoalStatus,
     createReview,
+    saveQuickCapture,
     downloadExport,
     importWorkspace,
     resetWorkspace,

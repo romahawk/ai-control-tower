@@ -1,5 +1,7 @@
 export type ViewType =
   | "dashboard"
+  | "projects"
+  | "scenarios"
   | "prompts"
   | "execution"
   | "contexts"
@@ -21,11 +23,16 @@ export type ScenarioCategory =
 
 export type ScenarioStatus = "active" | "paused" | "archived"
 export type PriorityLevel = "low" | "medium" | "high"
+export type ProjectStatus = "active" | "paused" | "archived" | "completed"
+export type GoalStatus = "active" | "paused" | "completed"
 export type WorkflowStatus = "draft" | "ready" | "active" | "archived"
 export type SessionStatus = "active" | "paused" | "blocked" | "completed"
 export type StepExecutionStatus = "not-started" | "active" | "completed" | "blocked" | "skipped"
 export type OutputType = "note" | "decision" | "link" | "artifact" | "summary"
 export type ReviewType = "daily" | "weekly" | "scenario" | "workflow"
+export type QuickCaptureType = "task" | "prompt" | "idea" | "decision"
+export type WorkspaceBoardStatus = "inbox" | "clarify" | "active" | "waiting" | "done" | "blocked"
+export type WorkflowHealthStatus = "healthy" | "at-risk" | "blocked" | "stale" | "misaligned"
 export type PromptPurpose =
   | "research"
   | "planning"
@@ -113,11 +120,45 @@ export interface Scenario {
   updatedAt?: string
 }
 
+export interface Project {
+  id: string
+  name: string
+  description: string
+  status: ProjectStatus
+  priority: PriorityLevel
+  scenarioId: string
+  workflowIds: string[]
+  nextAction: string
+  ownerNote?: string
+  createdAt: string
+  updatedAt: string
+  archivedAt?: string
+  completedAt?: string
+}
+
+export interface GoalRecord {
+  id: string
+  title: string
+  description: string
+  status: GoalStatus
+  scenarioId: string
+  projectId: string
+  workflowIds: string[]
+  targetValue: number
+  currentValue: number
+  unit: string
+  dueDate?: string
+  createdAt: string
+  updatedAt: string
+  completedAt?: string
+}
+
 export interface ContextRecord {
   id: string
   title: string
   content: string
   type: ContextType
+  projectId?: string
   scenarioId?: string
   workflowId?: string
   stepId?: string
@@ -184,14 +225,39 @@ export interface ReviewRecord {
   createdAt: string
 }
 
+export interface QuickCaptureRecord {
+  id: string
+  type: QuickCaptureType
+  content: string
+  status: WorkspaceBoardStatus
+  scenarioId?: string
+  workflowId?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface ControlTowerState {
   version: number
   selectedScenarioId: string
   selectedWorkflowId: string
+  selectedProjectId?: string
   activeSessionId?: string
+  projects: Project[]
+  goals: GoalRecord[]
   sessions: WorkflowSession[]
   contexts: ContextRecord[]
   reviews: ReviewRecord[]
+  quickCaptures: QuickCaptureRecord[]
+}
+
+export interface WorkflowHealth {
+  status: WorkflowHealthStatus
+  reason: string
+  linkedGoalCount: number
+  activeGoalCount: number
+  blocked: boolean
+  stale: boolean
+  misaligned: boolean
 }
 
 export interface IncomeEngine {

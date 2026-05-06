@@ -1,0 +1,51 @@
+import type { GoalRecord } from "@/types"
+
+const now = "2026-05-06T00:00:00.000Z"
+
+export const GOALS: GoalRecord[] = [
+  {
+    id: "goal-control-tower-phase-4",
+    title: "Ship Phase 4 goals and workflow health",
+    description: "Turn the execution OS into a goal-aware system with visible workflow health across the core surfaces.",
+    status: "active",
+    scenarioId: "product-development",
+    projectId: "project-control-tower",
+    workflowIds: ["pd-mvp-scope", "pd-build-kill-pivot"],
+    targetValue: 4,
+    currentValue: 2,
+    unit: "deliverables",
+    dueDate: "2026-05-20",
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "goal-income-proof-assets",
+    title: "Create proof assets for outreach",
+    description: "Turn shipped work into reusable proof and case-study material for the income engine.",
+    status: "active",
+    scenarioId: "income-engine",
+    projectId: "project-income-proof-system",
+    workflowIds: ["product-case-study-extraction", "agency-lead-generation"],
+    targetValue: 3,
+    currentValue: 1,
+    unit: "assets",
+    dueDate: "2026-05-18",
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "goal-weekly-focus-reset",
+    title: "Reduce active priorities to three",
+    description: "Keep the weekly focus system honest by limiting concurrent priorities and clearing admin drift.",
+    status: "paused",
+    scenarioId: "life-strategy",
+    projectId: "project-weekly-focus-ops",
+    workflowIds: ["weekly-focus-reset", "admin-inbox-reset"],
+    targetValue: 3,
+    currentValue: 5,
+    unit: "priorities",
+    dueDate: "2026-05-25",
+    createdAt: now,
+    updatedAt: now,
+  },
+]

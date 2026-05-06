@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import Sidebar from "@/components/sidebar"
 import TopBar from "@/components/top-bar"
 import CommandPalette from "@/components/command-palette"
+import { SCENARIOS } from "@/data/scenarios"
 import { Dashboard } from "@/components/views/dashboard"
+import { ProjectsView } from "@/components/views/projects-view"
 import { PromptLibrary } from "@/components/views/prompt-library"
 import { ExecutionPanel } from "@/components/views/execution-panel"
 import { ContextManager } from "@/components/views/context-manager"
@@ -12,6 +14,7 @@ import { ToolLauncher } from "@/components/views/tool-launcher"
 import { WorkflowLibrary } from "@/components/views/workflow-library"
 import { ReviewsView } from "@/components/views/reviews"
 import { Settings } from "@/components/views/settings"
+import { ScenariosView } from "@/components/views/scenarios-view"
 import { WikiView } from "@/components/views/wiki"
 import { useControlTowerState } from "@/hooks/use-control-tower-state"
 import { buildExecutionPack, getCurrentStepIndex } from "@/lib/control-tower"
@@ -26,12 +29,16 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
   const [commandOpen, setCommandOpen] = useState(false)
   const {
     state,
+    selectedProject,
     selectedScenario,
     selectedWorkflow,
     activeWorkflow,
     activeSession,
     currentStep,
+    scenarioProjects,
     scenarioWorkflows,
+    projects,
+    selectProject,
     scenarioPrompts,
     scenarioTools,
     stepPrompts,
@@ -41,10 +48,18 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
     recentOutputs,
     nextActions,
     reviews,
+    goals,
+    saveProject,
+    updateProjectStatus,
+    selectedProjectGoals,
+    saveGoal,
+    updateGoalStatus,
+    getWorkflowHealth,
     selectScenario,
     selectWorkflow,
     startWorkflowSession,
     setActiveSession,
+    clearActiveSessionFocus,
     resumeWorkflowSession,
     moveActiveStep,
     jumpToStep,
@@ -56,7 +71,9 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
     finishActiveSession,
     saveSessionSummary,
     createContextRecord,
+    removeContextRecord,
     createReview,
+    saveQuickCapture,
     downloadExport,
     importWorkspace,
     resetWorkspace,
@@ -84,6 +101,42 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
     onNavigate("workflows")
   }
 
+  const openProject = (projectId: string) => {
+    selectProject(projectId)
+    onNavigate("projects")
+  }
+
+  const handleNewAction = (kind: "workflow" | "project" | "prompt" | "review" | "scenario" | "capture") => {
+    switch (kind) {
+      case "workflow": {
+        const defaultWorkflowId = selectedScenario.defaultWorkflowIds?.[0]
+        if (defaultWorkflowId) {
+          startWorkflowSession(defaultWorkflowId)
+        }
+        onNavigate("workflows")
+        return
+      }
+      case "project":
+        onNavigate("projects")
+        return
+      case "prompt":
+        onNavigate("prompts")
+        return
+      case "review":
+        createReview("weekly", { scenarioId: selectedScenario.id })
+        onNavigate("reviews")
+        return
+      case "scenario":
+        onNavigate("scenarios")
+        return
+      case "capture":
+        onNavigate("dashboard")
+        return
+      default:
+        onNavigate("dashboard")
+    }
+  }
+
   const workflowSessions = useMemo(
     () => state.sessions.filter((session) => session.workflowId === selectedWorkflow.id),
     [selectedWorkflow.id, state.sessions]
@@ -100,14 +153,58 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
         return (
           <Dashboard
             selectedScenario={selectedScenario}
+            scenarioProjects={scenarioProjects}
+            scenarioWorkflows={scenarioWorkflows}
+            sessions={state.sessions}
             activeSessions={activeSessions}
+            activeSession={activeSession}
+            quickCaptures={state.quickCaptures}
             recentOutputs={recentOutputs}
             recentReviews={reviews}
             nextActions={nextActions}
+            goals={goals}
+            getWorkflowHealth={getWorkflowHealth}
             onNavigate={onNavigate}
+            onOpenProject={openProject}
             onOpenWorkflow={openWorkflow}
             onStartWorkflowSession={startWorkflowSession}
+            onResetFocus={clearActiveSessionFocus}
+            onQuickCapture={saveQuickCapture}
+          />
+        )
+      case "projects":
+        return (
+          <ProjectsView
+            selectedScenario={selectedScenario}
+            selectedProject={selectedProject}
+            projects={projects}
+            sessions={state.sessions}
+            recentOutputs={recentOutputs}
+            contexts={state.contexts}
+            goals={selectedProjectGoals}
+            onSelectProject={selectProject}
+            onOpenWorkflows={() => onNavigate("workflows")}
+            onOpenScenario={(scenarioId) => {
+              selectScenario(scenarioId)
+              onNavigate("scenarios")
+            }}
+            onSaveProject={saveProject}
+            onUpdateProjectStatus={updateProjectStatus}
+            onSaveGoal={saveGoal}
+            onUpdateGoalStatus={updateGoalStatus}
+            onSaveContext={createContextRecord}
+            onDeleteContext={removeContextRecord}
+          />
+        )
+      case "scenarios":
+        return (
+          <ScenariosView
+            selectedScenario={selectedScenario}
+            sessions={state.sessions}
+            recentOutputs={recentOutputs}
             onSelectScenario={selectScenario}
+            onOpenWorkflows={() => onNavigate("workflows")}
+            onEditScenario={() => onNavigate("settings")}
           />
         )
       case "prompts":
@@ -116,7 +213,9 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             selectedScenario={selectedScenario}
             prompts={scenarioPrompts}
             tools={scenarioTools}
+            quickCaptures={state.quickCaptures}
             onOpenWorkflow={openWorkflow}
+            onSaveQuickCapture={saveQuickCapture}
           />
         )
       case "execution":
@@ -125,9 +224,12 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
         return (
           <ContextManager
             selectedScenario={selectedScenario}
+            selectedProject={selectedProject}
             selectedWorkflow={selectedWorkflow}
+            currentStep={currentStep}
             contexts={state.contexts}
             onSaveContext={createContextRecord}
+            onDeleteContext={removeContextRecord}
           />
         )
       case "tools":
@@ -142,16 +244,22 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
         return (
           <WorkflowLibrary
             selectedScenario={selectedScenario}
+            selectedProject={selectedProject}
+            scenarioProjects={scenarioProjects}
             workflows={scenarioWorkflows}
             selectedWorkflow={selectedWorkflow}
+            allSessions={state.sessions}
             activeSession={activeSession}
             workflowSessions={workflowSessions}
             currentStepIndex={currentStepIndex}
             stepPrompts={stepPrompts}
             stepTools={stepTools}
             stepContexts={stepContexts}
+            goals={goals}
+            getWorkflowHealth={getWorkflowHealth}
             executionPack={executionPack}
             onSelectWorkflow={selectWorkflow}
+            onOpenRunner={() => onNavigate("execution")}
             onStartWorkflowSession={startWorkflowSession}
             onSetActiveSession={setActiveSession}
             onResumeWorkflowSession={resumeWorkflowSession}
@@ -206,6 +314,10 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
         <TopBar
           onOpenCommand={() => setCommandOpen(true)}
           currentView={currentView}
+          selectedScenario={selectedScenario}
+          scenarios={SCENARIOS}
+          onSelectScenario={selectScenario}
+          onNewAction={handleNewAction}
         />
         <main className="flex-1 overflow-auto">{renderView()}</main>
       </div>
