@@ -1,6 +1,6 @@
 "use client"
 
-import { ClipboardCheck, Compass, GitBranch, MessageSquare, NotebookPen, Plus } from "lucide-react"
+import { ClipboardCheck, Compass, FolderKanban, GitBranch, MessageSquare, NotebookPen, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import type { ViewType } from "@/types"
 
-type NewItemKind = "workflow" | "prompt" | "review" | "scenario" | "capture"
+type NewItemKind = "workflow" | "project" | "prompt" | "review" | "scenario" | "capture"
 
 interface NewItemMenuProps {
   currentView: ViewType
@@ -21,6 +21,7 @@ interface NewItemMenuProps {
 
 const itemMeta = {
   workflow: { label: "New Workflow", icon: GitBranch, description: "Start or stage workflow work" },
+  project: { label: "New Project", icon: FolderKanban, description: "Create an execution container for linked workflows" },
   prompt: { label: "New Prompt", icon: MessageSquare, description: "Capture reusable prompt logic" },
   review: { label: "New Review", icon: ClipboardCheck, description: "Create a fresh review record" },
   scenario: { label: "New Scenario", icon: Compass, description: "Set up a reusable operating context" },
@@ -28,14 +29,15 @@ const itemMeta = {
 } as const
 
 const defaultOrderByView: Partial<Record<ViewType, NewItemKind[]>> = {
-  workflows: ["workflow", "capture", "review", "prompt", "scenario"],
-  prompts: ["prompt", "capture", "workflow", "review", "scenario"],
-  reviews: ["review", "workflow", "capture", "prompt", "scenario"],
-  scenarios: ["scenario", "workflow", "prompt", "review", "capture"],
+  workflows: ["workflow", "project", "capture", "review", "prompt", "scenario"],
+  projects: ["project", "workflow", "capture", "review", "prompt", "scenario"],
+  prompts: ["prompt", "capture", "workflow", "project", "review", "scenario"],
+  reviews: ["review", "workflow", "project", "capture", "prompt", "scenario"],
+  scenarios: ["scenario", "project", "workflow", "prompt", "review", "capture"],
 }
 
 export function NewItemMenu({ currentView, onSelect }: NewItemMenuProps) {
-  const orderedKinds = defaultOrderByView[currentView] ?? ["workflow", "prompt", "review", "scenario", "capture"]
+  const orderedKinds = defaultOrderByView[currentView] ?? ["workflow", "project", "prompt", "review", "scenario", "capture"]
 
   return (
     <DropdownMenu>

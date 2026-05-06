@@ -1,5 +1,6 @@
 export type ViewType =
   | "dashboard"
+  | "projects"
   | "scenarios"
   | "prompts"
   | "execution"
@@ -22,6 +23,7 @@ export type ScenarioCategory =
 
 export type ScenarioStatus = "active" | "paused" | "archived"
 export type PriorityLevel = "low" | "medium" | "high"
+export type ProjectStatus = "active" | "paused" | "archived" | "completed"
 export type WorkflowStatus = "draft" | "ready" | "active" | "archived"
 export type SessionStatus = "active" | "paused" | "blocked" | "completed"
 export type StepExecutionStatus = "not-started" | "active" | "completed" | "blocked" | "skipped"
@@ -116,6 +118,22 @@ export interface Scenario {
   updatedAt?: string
 }
 
+export interface Project {
+  id: string
+  name: string
+  description: string
+  status: ProjectStatus
+  priority: PriorityLevel
+  scenarioId: string
+  workflowIds: string[]
+  nextAction: string
+  ownerNote?: string
+  createdAt: string
+  updatedAt: string
+  archivedAt?: string
+  completedAt?: string
+}
+
 export interface ContextRecord {
   id: string
   title: string
@@ -202,7 +220,9 @@ export interface ControlTowerState {
   version: number
   selectedScenarioId: string
   selectedWorkflowId: string
+  selectedProjectId?: string
   activeSessionId?: string
+  projects: Project[]
   sessions: WorkflowSession[]
   contexts: ContextRecord[]
   reviews: ReviewRecord[]

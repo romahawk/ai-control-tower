@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import {
   BookOpen,
   Compass,
+  FolderKanban,
   GitBranch,
   Hash,
   LayoutDashboard,
@@ -23,6 +24,7 @@ interface CommandPaletteProps {
 
 const navCommands = [
   { id: "dashboard", label: "Go to Control Tower", icon: LayoutDashboard, shortcut: "G D" },
+  { id: "projects", label: "Go to Projects", icon: FolderKanban, shortcut: "G J" },
   { id: "scenarios", label: "Go to Scenarios", icon: Compass, shortcut: "G S" },
   { id: "workflows", label: "Go to Workflow Library", icon: GitBranch, shortcut: "G W" },
   { id: "prompts", label: "Go to Prompt Library", icon: BookOpen, shortcut: "G P" },

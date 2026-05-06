@@ -3,6 +3,7 @@
 import { useMemo } from "react"
 import {
   ArrowRight,
+  FolderKanban,
   OctagonAlert,
   Compass,
   PlayCircle,
@@ -23,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getWorkflowById, getLatestSessionForWorkflow } from "@/lib/control-tower"
 import type {
   OutputRecord,
+  Project,
   QuickCaptureRecord,
   ReviewRecord,
   Scenario,
@@ -33,6 +35,7 @@ import type {
 
 interface DashboardProps {
   selectedScenario: Scenario
+  scenarioProjects: Project[]
   scenarioWorkflows: Workflow[]
   sessions: WorkflowSession[]
   activeSessions: WorkflowSession[]
@@ -41,6 +44,7 @@ interface DashboardProps {
   recentReviews: ReviewRecord[]
   nextActions: string[]
   onNavigate: (view: ViewType) => void
+  onOpenProject: (projectId: string) => void
   onOpenWorkflow: (workflowId: string) => void
   onStartWorkflowSession: (workflowId: string) => void
   onQuickCapture: (params: {
@@ -73,6 +77,7 @@ function getBoardStatus(workflow: Workflow, session?: WorkflowSession) {
 
 export function Dashboard({
   selectedScenario,
+  scenarioProjects,
   scenarioWorkflows,
   sessions,
   quickCaptures,
@@ -80,6 +85,7 @@ export function Dashboard({
   recentReviews,
   nextActions,
   onNavigate,
+  onOpenProject,
   onOpenWorkflow,
   onStartWorkflowSession,
   onQuickCapture,
@@ -253,6 +259,51 @@ export function Dashboard({
                 </CardContent>
               </Card>
 
+              <Card className="surface-panel rounded-3xl border-border/60">
+                <CardContent className="p-5 md:p-6">
+                  <SectionHeader
+                    icon={FolderKanban}
+                    title="Projects In Motion"
+                    description="The active project containers behind this scenario."
+                    action={
+                      <Button variant="outline" size="sm" onClick={() => onNavigate("projects")}>
+                        Open projects
+                      </Button>
+                    }
+                  />
+                  <div className="mt-4 space-y-3">
+                    {scenarioProjects.slice(0, 3).map((project) => (
+                      <button
+                        key={project.id}
+                        onClick={() => onOpenProject(project.id)}
+                        className="w-full rounded-2xl border border-border/60 bg-secondary/15 p-4 text-left transition hover:border-primary/20 hover:bg-secondary/30"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{project.name}</p>
+                            <p className="mt-1 text-sm text-muted-foreground">{project.nextAction}</p>
+                          </div>
+                          <StatusBadge status={project.status} />
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                          <span>{project.workflowIds.length} workflows</span>
+                          <span>{project.priority} priority</span>
+                        </div>
+                      </button>
+                    ))}
+                    {scenarioProjects.length === 0 ? (
+                      <EmptyState
+                        icon={FolderKanban}
+                        title="No projects yet"
+                        description="Create a project to group the workflows that belong together."
+                      />
+                    ) : null}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
               <Card className="surface-panel rounded-3xl border-border/60">
                 <CardContent className="p-5 md:p-6">
                   <SectionHeader

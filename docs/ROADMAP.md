@@ -1,142 +1,375 @@
 # AI Control Tower Roadmap
 
-This roadmap reflects the current repo direction and implementation state as of 2026-05-04.
+This roadmap defines the full strategic delivery sequence for AI Control Tower. It is the durable planning record for all phases, even when detailed implementation issues only exist for the current phase, the next phase, or an early dependency.
 
-The product model is:
+The product model remains:
 
 `Scenario -> Workflow -> Step -> Tool / Prompt / Context -> Execution -> Output -> Review`
 
-## Why The Roadmap Changed
+## Tracking Model
 
-The older repo framing treated Income Engine as the product. The current direction treats Income Engine as one important scenario inside a broader Personal Execution OS.
+- `ROADMAP.md` stores the full strategic 12-phase plan.
+- GitHub Milestones represent each phase.
+- GitHub Issues are implementation units.
+- GitHub Project is the live execution board and source of truth for active work state.
+- Phase Epic issues summarize future phases and preserve intent before detailed work starts.
+- Detailed issues should only be created for the current phase and the next phase to avoid backlog overload.
 
-That shift matters because the product is solving:
-- AI tool sprawl
-- prompt overload
-- project overload
-- missing execution structure
-- missing output and review loops
+## Full Phase Roadmap
 
-## Phase Status
-
-| Phase | Name | Status | Notes |
-| --- | --- | --- | --- |
-| 0 | Re-audit and documentation update | Complete | Docs now reflect the scenario-first execution model. |
-| 1 | Static Control Tower foundation | Complete | Dashboard, libraries, navigation, and seeded templates remain intact. |
-| 2 | Personal Execution OS | Complete | Workflow sessions, step completion, output logging, blockers, pause/resume, summaries, and local persistence are implemented. |
-| 3 | Scenario refactor | Complete | `Scenario` is now the top-level model and Income Engine is one scenario. |
-| 4 | Context + Prompt Governance | Complete | Context records persist locally and prompts are step-aware with execution-pack support. |
-| 5 | Product Development scenario | Complete | Product Development scenario and its validation workflows are seeded into the same universal system. |
-| 6 | Review / Decision Intelligence | Partial | Local review generation and deterministic next actions exist; richer workflow review UX can expand further. |
-| 7 | Productization readiness | Partial | Export/import/reset/demo/template-pack structure and backend migration notes exist without introducing SaaS complexity. |
-
-## Phase 1. Static Control Tower Foundation
+### Phase 0 - Audit
 
 Goal:
-Preserve and clean up the static shell without losing existing functionality.
+Establish the current-state baseline, align documentation, and confirm what the product is before new implementation work continues.
 
-Included:
-- Dashboard shell
-- Sidebar and top navigation
-- Workflow library
-- Prompt library
-- Tool registry
-- Static seed data
+Key deliverables:
+- Repo and docs audit
+- Current architecture and workflow inventory
+- Updated planning docs aligned to the scenario-first product model
 
-Done:
-- Seed data remains visible and typed
-- Existing browsing and prompt copy flows were preserved
-- Naming moved toward Control Tower / Scenario without risky full rewrites
+Acceptance criteria:
+- Scope, terminology, and current system behavior are documented
+- Gaps, risks, and immediate sequencing are visible to contributors
+- The next implementation phase can start without ambiguity
 
-## Phase 2. Personal Execution OS
+Risk level:
+Low
 
-Goal:
-Turn the app from a viewer into an executable workflow system.
+Suggested milestone name:
+`Phase 0 - Audit`
 
-Implemented:
-- Workflow session creation
-- Active session focus
-- Step completion
-- Output logging
-- Blocker notes
-- Pause and resume notes
-- Session finishing
-- Session summaries
-- Local persistence with safe loading
+Suggested epic issue title:
+`Epic: Phase 0 - Audit`
 
-## Phase 3. Scenario Refactor
+### Phase 1 - Workspace Foundation
 
 Goal:
-Replace Income Engine as the app identity with Scenario as the top-level model.
+Create the stable workspace shell, navigation, and shared structures required for all later execution features.
 
-Implemented:
-- `Scenario` as first-class entity
-- Scenario switcher on the dashboard
-- Scenario-based workflow, prompt, tool, and context views
-- Legacy `INCOME_ENGINES` retained only as a compatibility adapter
+Key deliverables:
+- Workspace shell and information architecture
+- Shared navigation and layout patterns
+- Base entities, storage boundaries, and seeded app foundation
 
-## Phase 4. Context + Prompt Governance
+Acceptance criteria:
+- The app has a coherent workspace frame for future modules
+- Shared UI/state patterns support adding new domains without rework
+- The foundation is stable enough for project-level features
 
-Goal:
-Reduce prompt overload by attaching prompts and context to active steps.
+Risk level:
+Low
 
-Implemented:
-- Context manager with local persistence
-- Scenario/workflow-linked context records
-- Prompt metadata for purpose, version, required input, and expected output
-- Step-specific prompt surfacing
-- Copy execution pack action
+Suggested milestone name:
+`Phase 1 - Workspace Foundation`
 
-## Phase 5. Product Development Scenario
+Suggested epic issue title:
+`Epic: Phase 1 - Workspace Foundation`
 
-Goal:
-Validate product ideas quickly for solo entrepreneurship.
-
-Implemented:
-- Product Development scenario
-- Seed workflows for intake, framing, research, economics, MVP scope, experiments, and build/kill/pivot
-- Shared universal model instead of scenario-specific hardcoding
-
-## Phase 6. Review / Decision Intelligence
+### Phase 2 - Projects
 
 Goal:
-Add a review layer that reduces cognitive overload and turns outputs into next actions.
+Introduce project-level organization so work can be grouped, tracked, and executed within a durable project structure.
 
-Implemented now:
-- Review view
-- Daily, weekly, and scenario review creation
-- Blocked workflow visibility
-- Recent outputs
-- Decision log
-- Deterministic next-action rules
+Key deliverables:
+- Project entity and lifecycle
+- Project list and detail surfaces
+- Project-to-scenario/workflow relationships
 
-Still useful later:
-- Richer workflow-specific review creation UX
-- More nuanced decision heuristics
-- Review comparison over time
+Acceptance criteria:
+- Users can create, view, and organize projects
+- Projects can hold the work needed for active execution
+- Project structure supports later context, goals, and review features
 
-## Phase 7. Productization Readiness
+Risk level:
+Medium
+
+Suggested milestone name:
+`Phase 2 - Projects`
+
+Suggested epic issue title:
+`Epic: Phase 2 - Projects`
+
+### Phase 3 - Project Context Vault
 
 Goal:
-Prepare for future backend and multi-user expansion without overbuilding now.
+Give each project a reusable context layer so important knowledge is stored once and reused across prompts and workflows.
 
-Implemented now:
-- Seed templates separated from local user data
-- Export/import/reset/demo controls
-- Template pack structure
-- Backend migration notes in docs
+Key deliverables:
+- Project context vault model
+- Context capture and retrieval flows
+- Context linkage to projects, workflows, and steps
 
-Future productization work:
-- Auth
-- database repositories
-- workspace isolation
-- sharing
-- multi-user support
+Acceptance criteria:
+- Project context can be stored and retrieved reliably
+- Relevant context can be associated with active execution work
+- The vault reduces repeated manual prompt assembly
 
-## Current Non-Goals
+Risk level:
+Medium
 
-- Backend-first rewrite
-- auth flows in the MVP runtime
-- AI API orchestration inside the app
-- agent automation layer
-- SaaS billing or onboarding
+Suggested milestone name:
+`Phase 3 - Project Context Vault`
+
+Suggested epic issue title:
+`Epic: Phase 3 - Project Context Vault`
+
+### Phase 4 - Goals + Workflow Health
+
+Goal:
+Add goal tracking and workflow health signals so users can see whether work is progressing or drifting.
+
+Key deliverables:
+- Goal model and progress tracking
+- Workflow health indicators
+- Signals for blocked, stale, or misaligned work
+
+Acceptance criteria:
+- Goals can be attached to project execution
+- Workflow health is visible without digging through raw activity
+- Users can identify where attention is needed next
+
+Risk level:
+Medium
+
+Suggested milestone name:
+`Phase 4 - Goals + Workflow Health`
+
+Suggested epic issue title:
+`Epic: Phase 4 - Goals + Workflow Health`
+
+### Phase 5 - Scenario Home
+
+Goal:
+Create a scenario-centered home surface that helps users enter the right execution space quickly.
+
+Key deliverables:
+- Scenario home screen
+- Scenario summaries and entry points
+- Scenario-specific navigation and status framing
+
+Acceptance criteria:
+- Users can understand each scenario at a glance
+- The home surface provides clear next actions into execution
+- Scenario framing is consistent across the workspace
+
+Risk level:
+Medium
+
+Suggested milestone name:
+`Phase 5 - Scenario Home`
+
+Suggested epic issue title:
+`Epic: Phase 5 - Scenario Home`
+
+### Phase 6 - External Systems + AI Thread Registry
+
+Goal:
+Track important outside tools and AI conversation threads so execution history is not fragmented across systems.
+
+Key deliverables:
+- External system registry
+- AI thread registry
+- Links between projects, workflows, outputs, and external references
+
+Acceptance criteria:
+- External systems and AI threads can be recorded in a structured way
+- Users can reconnect app work with off-platform execution artifacts
+- The registry supports traceability without requiring full integrations first
+
+Risk level:
+High
+
+Suggested milestone name:
+`Phase 6 - External Systems + AI Thread Registry`
+
+Suggested epic issue title:
+`Epic: Phase 6 - External Systems + AI Thread Registry`
+
+### Phase 7 - Prompt OS + Copy Context + Prompt
+
+Goal:
+Systematize prompt usage so users can assemble the right context and prompt package with less friction and fewer mistakes.
+
+Key deliverables:
+- Prompt OS structure
+- Copy context action
+- Copy prompt action
+- Standard prompt packaging rules
+
+Acceptance criteria:
+- Prompts can be prepared from a repeatable system instead of ad hoc assembly
+- Context and prompt content are easy to copy for active execution
+- Prompt usage becomes more consistent across scenarios and workflows
+
+Risk level:
+Medium
+
+Suggested milestone name:
+`Phase 7 - Prompt OS + Copy Context + Prompt`
+
+Suggested epic issue title:
+`Epic: Phase 7 - Prompt OS + Copy Context + Prompt`
+
+### Phase 8 - Workflow Runner
+
+Goal:
+Provide a dedicated workflow execution experience that supports focused step-by-step run mode.
+
+Key deliverables:
+- Workflow runner UI
+- Step progression and state handling
+- Runtime actions for notes, blockers, and outputs
+
+Acceptance criteria:
+- A user can execute a workflow through a dedicated run surface
+- Step state is preserved reliably throughout a session
+- Execution data is captured in a way later phases can review and analyze
+
+Risk level:
+High
+
+Suggested milestone name:
+`Phase 8 - Workflow Runner`
+
+Suggested epic issue title:
+`Epic: Phase 8 - Workflow Runner`
+
+### Phase 9 - Quick Capture + Clarify Inbox
+
+Goal:
+Create a low-friction intake layer for ideas, tasks, and raw inputs before they are fully structured.
+
+Key deliverables:
+- Quick capture entry points
+- Clarify inbox
+- Triage flow into projects, scenarios, goals, or workflows
+
+Acceptance criteria:
+- Users can capture incomplete inputs quickly
+- Inbox items can be clarified and routed into the main system
+- Capture reduces the risk of losing work before formal planning
+
+Risk level:
+Medium
+
+Suggested milestone name:
+`Phase 9 - Quick Capture + Clarify Inbox`
+
+Suggested epic issue title:
+`Epic: Phase 9 - Quick Capture + Clarify Inbox`
+
+### Phase 10 - Outputs + Decisions + Reviews
+
+Goal:
+Turn execution artifacts into durable outputs, explicit decisions, and reusable review loops.
+
+Key deliverables:
+- Output management
+- Decision logging
+- Review workflows and summaries
+
+Acceptance criteria:
+- Outputs are stored in a structured and retrievable way
+- Decisions can be logged with enough context to revisit later
+- Reviews help convert raw execution data into next actions
+
+Risk level:
+High
+
+Suggested milestone name:
+`Phase 10 - Outputs + Decisions + Reviews`
+
+Suggested epic issue title:
+`Epic: Phase 10 - Outputs + Decisions + Reviews`
+
+### Phase 11 - Dashboard Logic
+
+Goal:
+Make the dashboard truly operational by surfacing the most important status, bottlenecks, and next actions automatically.
+
+Key deliverables:
+- Dashboard prioritization logic
+- Summary and alert rules
+- Cross-project and cross-scenario visibility
+
+Acceptance criteria:
+- The dashboard reflects meaningful live execution state
+- Users can identify priorities without manual synthesis
+- The logic supports decision-making instead of acting as a static overview
+
+Risk level:
+High
+
+Suggested milestone name:
+`Phase 11 - Dashboard Logic`
+
+Suggested epic issue title:
+`Epic: Phase 11 - Dashboard Logic`
+
+### Phase 12 - Settings + Wiki + Export
+
+Goal:
+Complete the operational layer for configuration, reference material, and durable data portability.
+
+Key deliverables:
+- Settings area
+- Internal wiki/reference space
+- Export capabilities
+
+Acceptance criteria:
+- Core workspace settings can be managed in-app
+- Users have a place for durable internal reference material
+- Important data can be exported for backup, migration, or sharing
+
+Risk level:
+Medium
+
+Suggested milestone name:
+`Phase 12 - Settings + Wiki + Export`
+
+Suggested epic issue title:
+`Epic: Phase 12 - Settings + Wiki + Export`
+
+## Phase Epic Issue Template
+
+Title:
+
+`Epic: Phase X - [Phase Name]`
+
+Body:
+
+```md
+## Goal
+
+## Why it matters
+
+## Deliverables
+- [ ] ...
+
+## Out of scope
+
+## Acceptance criteria
+- [ ] ...
+
+## Risks
+
+## Child issues
+- [ ] To be created when phase becomes active
+```
+
+## Issue Creation Rule
+
+Detailed issues should be created only when:
+- the phase is current, or
+- the phase is next, or
+- a dependency must be clarified early.
+
+Avoid creating all detailed future issues upfront. Use phase epic issues and milestone structure to preserve future intent without turning the backlog into an unmaintainable wall of tickets.
+
+## Recommended GitHub Project Views
+
+- Board View: grouped by status
+- Roadmap View: grouped by Phase
+- Current Phase View: filtered by current phase
+- Backlog View: Inbox + Ready
+- Done by Phase View: grouped by milestone/phase
