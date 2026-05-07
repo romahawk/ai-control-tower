@@ -202,8 +202,16 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             selectedScenario={selectedScenario}
             sessions={state.sessions}
             recentOutputs={recentOutputs}
+            reviews={reviews}
+            quickCaptures={state.quickCaptures}
+            projects={projects}
+            goals={goals}
+            getWorkflowHealth={getWorkflowHealth}
             onSelectScenario={selectScenario}
             onOpenWorkflows={() => onNavigate("workflows")}
+            onOpenProjects={() => onNavigate("projects")}
+            onOpenPrompts={() => onNavigate("prompts")}
+            onOpenReviews={() => onNavigate("reviews")}
             onEditScenario={() => onNavigate("settings")}
           />
         )

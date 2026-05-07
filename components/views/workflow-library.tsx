@@ -382,10 +382,10 @@ export function WorkflowLibrary({
                             <p className="line-clamp-1 text-sm font-semibold text-foreground">{workflow.title}</p>
                             <StatusBadge status={getBoardStatus(workflow, workflowSession)} className="shrink-0" />
                           </div>
-                          <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                             <span>{workflowCompletedSteps}/{workflow.steps.length} steps</span>
                             {workflowProject ? <span>{workflowProject.name}</span> : <span>{selectedScenario.name}</span>}
-                            {health ? <StatusBadge status={health.status} /> : null}
+                            {health ? <span className="rounded-full border border-border/60 bg-card/40 px-2 py-0.5">{health.status}</span> : null}
                           </div>
                         </button>
                       )
@@ -488,15 +488,13 @@ export function WorkflowLibrary({
                       </div>
 
                     {workflowHealth ? (
-                      <div className="rounded-2xl border border-border/60 bg-secondary/10 px-3 py-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-semibold text-foreground">Workflow health</p>
-                          <StatusBadge status={workflowHealth.status} />
-                          <span className="rounded-full border border-border/60 bg-card/50 px-2 py-0.5 text-[10px] text-muted-foreground">
-                            {workflowHealth.linkedGoalCount} goals linked
-                          </span>
-                        </div>
-                        <p className="mt-2 text-sm text-muted-foreground">{workflowHealth.reason}</p>
+                      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/60 bg-secondary/10 px-3 py-2.5">
+                        <span className="text-sm font-semibold text-foreground">Workflow health</span>
+                        <StatusBadge status={workflowHealth.status} />
+                        <span className="rounded-full border border-border/60 bg-card/50 px-2 py-0.5 text-[10px] text-muted-foreground">
+                          {workflowHealth.linkedGoalCount} goals linked
+                        </span>
+                        <span className="min-w-0 flex-1 text-sm text-muted-foreground">{workflowHealth.reason}</span>
                       </div>
                     ) : null}
 
