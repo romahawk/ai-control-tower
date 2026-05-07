@@ -265,11 +265,27 @@ export function WorkflowLibrary({
       : "Continue"
     : "Start session"
   const statusLabel = selectedWorkflowSession?.status ?? getBoardStatus(selectedWorkflow, latestWorkflowSession)
+  const promptBody = stepPrompts[0]?.content ?? "No linked prompt yet."
+  const contextOnlyPack = [
+    `Scenario: ${selectedScenario.name}`,
+    `Workflow: ${selectedWorkflow.title}`,
+    `Step: ${selectedStep?.title ?? "No step selected"}`,
+    `Expected output: ${expectedOutput}`,
+    `Relevant context:\n${stepContexts.length > 0 ? stepContexts.map((context) => `- ${context.title}: ${context.content}`).join("\n") : "- None"}`,
+  ].join("\n\n")
 
   const copyExecutionPack = async () => {
     await navigator.clipboard.writeText(executionPack)
     setCopiedPack(true)
     window.setTimeout(() => setCopiedPack(false), 1500)
+  }
+
+  const copyPromptOnly = async () => {
+    await navigator.clipboard.writeText(promptBody)
+  }
+
+  const copyContextOnly = async () => {
+    await navigator.clipboard.writeText(contextOnlyPack)
   }
 
   const saveOutput = () => {
@@ -559,9 +575,17 @@ export function WorkflowLibrary({
                               </div>
 
                               <div className="mt-4 flex flex-wrap gap-2">
+                                <Button variant="outline" onClick={copyContextOnly}>
+                                  <Copy className="h-4 w-4" />
+                                  Copy context
+                                </Button>
+                                <Button variant="outline" onClick={copyPromptOnly}>
+                                  <MessageSquare className="h-4 w-4" />
+                                  Copy prompt
+                                </Button>
                                 <Button variant="outline" onClick={copyExecutionPack}>
                                   <Copy className="h-4 w-4" />
-                                  {copiedPack ? "Copied" : "Copy Context + Prompt"}
+                                  {copiedPack ? "Copied" : "Copy package"}
                                 </Button>
                                 {selectedWorkflowSession ? (
                                   <Button onClick={() => onResumeWorkflowSession(selectedWorkflowSession.id, resumeDraft.trim())}>

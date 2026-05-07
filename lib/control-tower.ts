@@ -16,6 +16,7 @@ import type {
   GoalRecord,
   GoalStatus,
   OutputRecord,
+  Prompt,
   Project,
   ProjectStatus,
   QuickCaptureRecord,
@@ -307,6 +308,13 @@ export function getToolsForStep(step?: WorkflowStep): Tool[] {
 
   return TOOLS.filter((tool) => step.toolIds.includes(tool.id))
 }
+
+export const PROMPT_OS_RULES = [
+  "Prefer the smallest prompt that can move the current step forward.",
+  "Package context separately from the prompt so context can be refreshed without rewriting instructions.",
+  "Tie every prompt to an expected output before sending it to an AI tool.",
+  "Use workflow-linked prompts before creating new custom prompts.",
+]
 
 function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -745,6 +753,49 @@ export function buildExecutionPack(
         : "- None"
     }`,
   ].join("\n\n")
+}
+
+export function buildContextPackForPrompt(prompt: Prompt, state: ControlTowerState) {
+  const workflow = prompt.workflowId ? getWorkflowById(prompt.workflowId) : undefined
+  const step = workflow?.steps.find((workflowStep) => workflowStep.id === prompt.stepId) ?? workflow?.steps[0]
+  const contexts = workflow
+    ? getContextsForStep(state, workflow, step)
+    : state.contexts.filter((context) => context.scenarioId === prompt.scenarioId)
+  const tool = prompt.toolId ? getToolById(prompt.toolId) : undefined
+
+  return [
+    `Scenario: ${getScenarioById(prompt.scenarioId)?.name ?? prompt.scenarioId ?? "Unscoped"}`,
+    `Workflow: ${workflow?.title ?? "No workflow linked"}`,
+    `Step: ${step?.title ?? "No step linked"}`,
+    `Expected output: ${prompt.expectedOutput}`,
+    `Recommended tool: ${tool?.name ?? "No tool linked"}`,
+    `Relevant context:\n${contexts.length > 0 ? contexts.map((context) => `- ${context.title}: ${context.content}`).join("\n") : "- None"}`,
+  ].join("\n\n")
+}
+
+export function buildPromptOnly(prompt: Prompt) {
+  return prompt.content
+}
+
+export function buildPromptPackage(prompt: Prompt, state: ControlTowerState) {
+  const workflow = prompt.workflowId ? getWorkflowById(prompt.workflowId) : undefined
+  const tool = prompt.toolId ? getToolById(prompt.toolId) : undefined
+
+  return [
+    "PROMPT OS PACKAGE",
+    `Prompt: ${prompt.title}`,
+    `Purpose: ${prompt.purpose}`,
+    `Expected output: ${prompt.expectedOutput}`,
+    `Input required: ${prompt.inputRequired}`,
+    `Workflow: ${workflow?.title ?? "No workflow linked"}`,
+    `Tool: ${tool?.name ?? "No tool linked"}`,
+    "",
+    `OPERATING RULES:\n${PROMPT_OS_RULES.map((rule) => `- ${rule}`).join("\n")}`,
+    "",
+    `CONTEXT PACK:\n${buildContextPackForPrompt(prompt, state)}`,
+    "",
+    `PROMPT BODY:\n${buildPromptOnly(prompt)}`,
+  ].join("\n")
 }
 
 export function buildReviewRecord(

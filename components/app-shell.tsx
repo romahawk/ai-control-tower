@@ -17,7 +17,7 @@ import { Settings } from "@/components/views/settings"
 import { ScenariosView } from "@/components/views/scenarios-view"
 import { WikiView } from "@/components/views/wiki"
 import { useControlTowerState } from "@/hooks/use-control-tower-state"
-import { buildExecutionPack, getCurrentStepIndex } from "@/lib/control-tower"
+import { PROMPT_OS_RULES, buildContextPackForPrompt, buildExecutionPack, buildPromptOnly, buildPromptPackage, getCurrentStepIndex } from "@/lib/control-tower"
 import type { ViewType } from "@/types/navigation"
 
 interface AppShellProps {
@@ -239,9 +239,14 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
         return (
           <PromptLibrary
             selectedScenario={selectedScenario}
+            selectedWorkflow={selectedWorkflow}
             prompts={scenarioPrompts}
             tools={scenarioTools}
             quickCaptures={state.quickCaptures}
+            promptRules={PROMPT_OS_RULES}
+            getContextPack={(prompt) => buildContextPackForPrompt(prompt, state)}
+            getPromptBody={buildPromptOnly}
+            getPromptPackage={(prompt) => buildPromptPackage(prompt, state)}
             onOpenWorkflow={openWorkflow}
             onSaveQuickCapture={saveQuickCapture}
           />
