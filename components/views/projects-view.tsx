@@ -176,6 +176,21 @@ function makeGoalDraft(goal?: GoalRecord): GoalDraft {
   }
 }
 
+function getLifecycleLabel(project: ProjectStatus) {
+  switch (project) {
+    case "active":
+      return "Pause, complete, or archive"
+    case "paused":
+      return "Resume or archive"
+    case "completed":
+      return "Reopen or archive"
+    case "archived":
+      return "Restore project"
+    default:
+      return "Update status"
+  }
+}
+
 export function ProjectsView({
   selectedScenario,
   selectedProject,
@@ -615,7 +630,7 @@ export function ProjectsView({
                           </p>
                         </div>
 
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <Button onClick={continueWorkflow}>
                             <PlayCircle className="h-4 w-4" />
                             Continue
@@ -626,19 +641,18 @@ export function ProjectsView({
                           <Button variant="outline" onClick={() => startEditingProject(panelProject)}>
                             Edit
                           </Button>
-                          {lifecycleActions(panelProject).map((action) => {
-                            const Icon = action.icon
-                            return (
-                              <Button
-                                key={action.label}
-                                variant="outline"
-                                onClick={() => onUpdateProjectStatus(panelProject.id, action.status)}
-                              >
-                                <Icon className="h-4 w-4" />
-                                {action.label}
-                              </Button>
-                            )
-                          })}
+                          <Select onValueChange={(value) => onUpdateProjectStatus(panelProject.id, value as ProjectStatus)}>
+                            <SelectTrigger className="h-10 min-w-[190px] border-border/70 bg-secondary/20">
+                              <SelectValue placeholder={getLifecycleLabel(panelProject.status)} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {lifecycleActions(panelProject).map((action) => (
+                                <SelectItem key={action.label} value={action.status}>
+                                  {action.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
 

@@ -363,28 +363,13 @@ export function Dashboard({
                   </CardContent>
                 </Card>
 
-                {openLoopItems.length > 0 ? (
-                  <Card className="surface-panel rounded-3xl border-border/60">
-                    <CardContent className="p-5">
-                      <SectionHeader icon={OctagonAlert} title="Open Loops" />
-                      <div className="mt-4 space-y-2">
-                        {openLoopItems.map((item) => (
-                          <div key={item.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-secondary/10 px-3 py-2.5">
-                            <p className="min-w-0 flex-1 truncate text-sm text-foreground">{item.label}</p>
-                            <StatusBadge status={item.tone} />
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ) : null}
               </div>
 
               <div className="space-y-4">
                 <Card className="surface-panel rounded-3xl border-border/60">
-                  <CardContent className="p-4">
+                  <CardContent className="p-3.5">
                     <SectionHeader icon={Sparkles} title="Quick Capture" />
-                    <div className="mt-3">
+                    <div className="mt-2.5">
                       <DashboardQuickCapture
                         selectedScenario={selectedScenario}
                         selectedWorkflow={currentWorkflow ?? scenarioWorkflows[0]}
@@ -439,6 +424,35 @@ export function Dashboard({
                     </div>
                   </CardContent>
                 </Card>
+
+                {openLoopItems.length > 0 ? (
+                  <Card className="surface-panel rounded-3xl border-border/60">
+                    <CardContent className="p-4">
+                      <SectionHeader
+                        icon={OctagonAlert}
+                        title="Open Loops"
+                        action={
+                          <Button variant="outline" size="sm" onClick={() => onNavigate("reviews")}>
+                            View all
+                          </Button>
+                        }
+                      />
+                      <div className="mt-3 space-y-2">
+                        {openLoopItems.slice(0, 2).map((item) => (
+                          <div key={item.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-secondary/10 px-3 py-2">
+                            <p className="min-w-0 flex-1 truncate text-sm text-foreground">{item.label}</p>
+                            <StatusBadge status={item.tone} />
+                          </div>
+                        ))}
+                        {openLoopItems.length > 2 ? (
+                          <div className="rounded-xl border border-dashed border-border/60 px-3 py-2 text-center text-[11px] text-muted-foreground">
+                            +{openLoopItems.length - 2} more loops
+                          </div>
+                        ) : null}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : null}
 
                 <Card className="surface-panel rounded-3xl border-border/60">
                   <CardContent className="p-4">
