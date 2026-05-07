@@ -52,8 +52,20 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
     saveProject,
     updateProjectStatus,
     selectedProjectGoals,
+    selectedProjectExternalSystems,
+    selectedProjectAiThreads,
     saveGoal,
     updateGoalStatus,
+    externalSystems,
+    aiThreads,
+    getScenarioExternalSystems,
+    getWorkflowExternalSystems,
+    getScenarioAiThreads,
+    getWorkflowAiThreads,
+    saveExternalSystem,
+    removeExternalSystemRecord,
+    saveAiThread,
+    removeAiThreadRecord,
     getWorkflowHealth,
     selectScenario,
     selectWorkflow,
@@ -182,6 +194,8 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             recentOutputs={recentOutputs}
             contexts={state.contexts}
             goals={selectedProjectGoals}
+            externalSystems={selectedProjectExternalSystems}
+            aiThreads={selectedProjectAiThreads}
             onSelectProject={selectProject}
             onOpenWorkflows={() => onNavigate("workflows")}
             onOpenScenario={(scenarioId) => {
@@ -192,6 +206,10 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             onUpdateProjectStatus={updateProjectStatus}
             onSaveGoal={saveGoal}
             onUpdateGoalStatus={updateGoalStatus}
+            onSaveExternalSystem={saveExternalSystem}
+            onDeleteExternalSystem={removeExternalSystemRecord}
+            onSaveAiThread={saveAiThread}
+            onDeleteAiThread={removeAiThreadRecord}
             onSaveContext={createContextRecord}
             onDeleteContext={removeContextRecord}
           />
@@ -206,6 +224,8 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             quickCaptures={state.quickCaptures}
             projects={projects}
             goals={goals}
+            externalSystems={getScenarioExternalSystems(selectedScenario.id)}
+            aiThreads={getScenarioAiThreads(selectedScenario.id)}
             getWorkflowHealth={getWorkflowHealth}
             onSelectScenario={selectScenario}
             onOpenWorkflows={() => onNavigate("workflows")}
@@ -245,7 +265,14 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
           <ToolLauncher
             selectedScenario={selectedScenario}
             tools={scenarioTools}
+            externalSystems={externalSystems}
+            aiThreads={aiThreads}
             onOpenWorkflow={openWorkflow}
+            onOpenProject={openProject}
+            onSaveExternalSystem={saveExternalSystem}
+            onDeleteExternalSystem={removeExternalSystemRecord}
+            onSaveAiThread={saveAiThread}
+            onDeleteAiThread={removeAiThreadRecord}
           />
         )
       case "workflows":
@@ -264,6 +291,8 @@ export default function AppShell({ currentView, onNavigate }: AppShellProps) {
             stepTools={stepTools}
             stepContexts={stepContexts}
             goals={goals}
+            externalSystems={getWorkflowExternalSystems(selectedWorkflow.id)}
+            aiThreads={getWorkflowAiThreads(selectedWorkflow.id)}
             getWorkflowHealth={getWorkflowHealth}
             executionPack={executionPack}
             onSelectWorkflow={selectWorkflow}

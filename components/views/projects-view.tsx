@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState } from "react"
 import {
   Archive,
+  Bot,
   CheckCircle2,
   ChevronRight,
   Copy,
   Database,
   FolderKanban,
+  Link2,
   PauseCircle,
   Pencil,
   PlayCircle,
@@ -39,7 +41,9 @@ import { SCENARIOS } from "@/data/scenarios"
 import { WORKFLOWS } from "@/data/workflows"
 import { getContextIcon } from "@/lib/ui-meta"
 import type {
+  AiThreadRecord,
   ContextRecord,
+  ExternalSystemRecord,
   GoalRecord,
   GoalStatus,
   OutputRecord,
@@ -59,6 +63,8 @@ interface ProjectsViewProps {
   recentOutputs: OutputRecord[]
   contexts: ContextRecord[]
   goals: GoalRecord[]
+  externalSystems: ExternalSystemRecord[]
+  aiThreads: AiThreadRecord[]
   onSelectProject: (projectId: string) => void
   onOpenWorkflows: () => void
   onOpenScenario: (scenarioId: string) => void
@@ -88,6 +94,14 @@ interface ProjectsViewProps {
     dueDate?: string
   }) => void
   onUpdateGoalStatus: (goalId: string, status: GoalStatus) => void
+  onSaveExternalSystem: (
+    system: Omit<ExternalSystemRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }
+  ) => void
+  onDeleteExternalSystem: (systemId: string) => void
+  onSaveAiThread: (
+    thread: Omit<AiThreadRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }
+  ) => void
+  onDeleteAiThread: (threadId: string) => void
   onSaveContext: (
     contextRecord: Omit<ContextRecord, "id" | "createdAt" | "updatedAt"> & {
       id?: string
@@ -199,6 +213,8 @@ export function ProjectsView({
   recentOutputs,
   contexts,
   goals,
+  externalSystems,
+  aiThreads,
   onSelectProject,
   onOpenWorkflows,
   onOpenScenario,
@@ -206,6 +222,10 @@ export function ProjectsView({
   onUpdateProjectStatus,
   onSaveGoal,
   onUpdateGoalStatus,
+  onSaveExternalSystem,
+  onDeleteExternalSystem,
+  onSaveAiThread,
+  onDeleteAiThread,
   onSaveContext,
   onDeleteContext,
 }: ProjectsViewProps) {
@@ -276,6 +296,26 @@ export function ProjectsView({
   const panelGoals = panelProject
     ? goals
         .filter((goal) => goal.projectId === panelProject.id)
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    : []
+  const panelExternalSystems = panelProject
+    ? externalSystems
+        .filter(
+          (system) =>
+            system.projectId === panelProject.id ||
+            system.workflowId && panelProject.workflowIds.includes(system.workflowId) ||
+            system.scenarioId === panelProject.scenarioId
+        )
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    : []
+  const panelAiThreads = panelProject
+    ? aiThreads
+        .filter(
+          (thread) =>
+            thread.projectId === panelProject.id ||
+            thread.workflowId && panelProject.workflowIds.includes(thread.workflowId) ||
+            thread.scenarioId === panelProject.scenarioId
+        )
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
     : []
   const panelContexts = panelProject
@@ -1205,6 +1245,68 @@ export function ProjectsView({
                                     <p className="mt-2 text-sm text-muted-foreground">
                                       Keep the workflow set small, produce visible outputs, and keep one clear next action.
                                     </p>
+                                  </div>
+                                  <div className="grid gap-4 xl:grid-cols-2">
+                                    <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                                      <div className="flex items-center gap-2">
+                                        <Link2 className="h-4 w-4 text-primary" />
+                                        <p className="text-sm font-semibold text-foreground">External systems</p>
+                                      </div>
+                                      <div className="mt-3 space-y-2">
+                                        {panelExternalSystems.length > 0 ? (
+                                          panelExternalSystems.slice(0, 4).map((system) => (
+                                            <div key={system.id} className="rounded-xl border border-border/60 bg-background/40 p-3">
+                                              <div className="flex items-start justify-between gap-2">
+                                                <div className="min-w-0">
+                                                  <p className="text-sm font-semibold text-foreground">{system.name}</p>
+                                                  <p className="mt-1 text-xs text-muted-foreground">
+                                                    {system.category} · {system.status}
+                                                  </p>
+                                                  <p className="mt-2 text-sm text-muted-foreground">{system.purpose}</p>
+                                                </div>
+                                                {system.projectId === panelProject.id ? (
+                                                  <Button size="sm" variant="outline" onClick={() => onDeleteExternalSystem(system.id)}>
+                                                    <Trash2 className="h-4 w-4" />
+                                                  </Button>
+                                                ) : null}
+                                              </div>
+                                            </div>
+                                          ))
+                                        ) : (
+                                          <p className="text-sm text-muted-foreground">No linked systems recorded yet.</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                                      <div className="flex items-center gap-2">
+                                        <Bot className="h-4 w-4 text-primary" />
+                                        <p className="text-sm font-semibold text-foreground">AI threads</p>
+                                      </div>
+                                      <div className="mt-3 space-y-2">
+                                        {panelAiThreads.length > 0 ? (
+                                          panelAiThreads.slice(0, 4).map((thread) => (
+                                            <div key={thread.id} className="rounded-xl border border-border/60 bg-background/40 p-3">
+                                              <div className="flex items-start justify-between gap-2">
+                                                <div className="min-w-0">
+                                                  <p className="text-sm font-semibold text-foreground">{thread.title}</p>
+                                                  <p className="mt-1 text-xs text-muted-foreground">
+                                                    {thread.provider} · {thread.status}
+                                                  </p>
+                                                  <p className="mt-2 text-sm text-muted-foreground">{thread.summary}</p>
+                                                </div>
+                                                {thread.projectId === panelProject.id ? (
+                                                  <Button size="sm" variant="outline" onClick={() => onDeleteAiThread(thread.id)}>
+                                                    <Trash2 className="h-4 w-4" />
+                                                  </Button>
+                                                ) : null}
+                                              </div>
+                                            </div>
+                                          ))
+                                        ) : (
+                                          <p className="text-sm text-muted-foreground">No AI threads recorded yet.</p>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
                                   <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
                                     <div className="flex items-center gap-2">

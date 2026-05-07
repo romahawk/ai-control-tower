@@ -1,4 +1,6 @@
+import { AI_THREADS } from "@/data/ai-threads"
 import { CONTEXT_RECORDS } from "@/data/contexts"
+import { EXTERNAL_SYSTEMS } from "@/data/external-systems"
 import { GOALS } from "@/data/goals"
 import { PROJECTS } from "@/data/projects"
 import { PROMPTS } from "@/data/prompts"
@@ -7,8 +9,10 @@ import { TOOLS } from "@/data/tools"
 import { WORKFLOWS } from "@/data/workflows"
 import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "@/lib/storage"
 import type {
+  AiThreadRecord,
   ContextRecord,
   ControlTowerState,
+  ExternalSystemRecord,
   GoalRecord,
   GoalStatus,
   OutputRecord,
@@ -47,6 +51,8 @@ export function createInitialControlTowerState(): ControlTowerState {
     contexts: CONTEXT_RECORDS,
     reviews: [],
     quickCaptures: [],
+    externalSystems: EXTERNAL_SYSTEMS,
+    aiThreads: AI_THREADS,
   }
 }
 
@@ -75,6 +81,8 @@ export function sanitizeState(input: ControlTowerState): ControlTowerState {
     contexts: input.contexts?.length ? input.contexts : fallback.contexts,
     reviews: input.reviews ?? [],
     quickCaptures: input.quickCaptures ?? [],
+    externalSystems: input.externalSystems ?? fallback.externalSystems,
+    aiThreads: input.aiThreads ?? fallback.aiThreads,
   }
 }
 
@@ -157,6 +165,42 @@ export function getGoalsForProject(state: ControlTowerState, projectId?: string)
 export function getGoalsForWorkflow(state: ControlTowerState, workflowId: string) {
   return state.goals
     .filter((goal) => goal.workflowIds.includes(workflowId))
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+export function getExternalSystemsForScenario(state: ControlTowerState, scenarioId?: string) {
+  return state.externalSystems
+    .filter((system) => !scenarioId || system.scenarioId === scenarioId)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+export function getExternalSystemsForProject(state: ControlTowerState, projectId?: string) {
+  return state.externalSystems
+    .filter((system) => !projectId || system.projectId === projectId)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+export function getExternalSystemsForWorkflow(state: ControlTowerState, workflowId?: string) {
+  return state.externalSystems
+    .filter((system) => !workflowId || system.workflowId === workflowId)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+export function getAiThreadsForScenario(state: ControlTowerState, scenarioId?: string) {
+  return state.aiThreads
+    .filter((thread) => !scenarioId || thread.scenarioId === scenarioId)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+export function getAiThreadsForProject(state: ControlTowerState, projectId?: string) {
+  return state.aiThreads
+    .filter((thread) => !projectId || thread.projectId === projectId)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+export function getAiThreadsForWorkflow(state: ControlTowerState, workflowId?: string) {
+  return state.aiThreads
+    .filter((thread) => !workflowId || thread.workflowId === workflowId)
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
 }
 
@@ -595,6 +639,72 @@ export function upsertContext(
 
 export function deleteContext(contexts: ContextRecord[], contextId: string) {
   return contexts.filter((context) => context.id !== contextId)
+}
+
+export function upsertExternalSystem(
+  systems: ExternalSystemRecord[],
+  system: Omit<ExternalSystemRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }
+) {
+  const timestamp = new Date().toISOString()
+
+  if (system.id) {
+    return systems.map((existingSystem) =>
+      existingSystem.id === system.id
+        ? {
+            ...existingSystem,
+            ...system,
+            updatedAt: timestamp,
+          }
+        : existingSystem
+    )
+  }
+
+  return [
+    {
+      ...system,
+      id: makeId("external-system"),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+    ...systems,
+  ]
+}
+
+export function deleteExternalSystem(systems: ExternalSystemRecord[], systemId: string) {
+  return systems.filter((system) => system.id !== systemId)
+}
+
+export function upsertAiThread(
+  threads: AiThreadRecord[],
+  thread: Omit<AiThreadRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }
+) {
+  const timestamp = new Date().toISOString()
+
+  if (thread.id) {
+    return threads.map((existingThread) =>
+      existingThread.id === thread.id
+        ? {
+            ...existingThread,
+            ...thread,
+            updatedAt: timestamp,
+          }
+        : existingThread
+    )
+  }
+
+  return [
+    {
+      ...thread,
+      id: makeId("ai-thread"),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+    ...threads,
+  ]
+}
+
+export function deleteAiThread(threads: AiThreadRecord[], threadId: string) {
+  return threads.filter((thread) => thread.id !== threadId)
 }
 
 export function buildExecutionPack(

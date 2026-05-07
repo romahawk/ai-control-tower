@@ -26,6 +26,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getScenarioIcon } from "@/lib/ui-meta"
 import { cn } from "@/lib/utils"
 import type {
+  AiThreadRecord,
+  ExternalSystemRecord,
   GoalRecord,
   OutputRecord,
   Project,
@@ -44,6 +46,8 @@ interface ScenariosViewProps {
   quickCaptures: QuickCaptureRecord[]
   projects: Project[]
   goals: GoalRecord[]
+  externalSystems: ExternalSystemRecord[]
+  aiThreads: AiThreadRecord[]
   getWorkflowHealth: (workflowId: string) => WorkflowHealth | undefined
   onSelectScenario: (scenarioId: string) => void
   onOpenWorkflows: () => void
@@ -80,6 +84,8 @@ export function ScenariosView({
   quickCaptures,
   projects,
   goals,
+  externalSystems,
+  aiThreads,
   getWorkflowHealth,
   onSelectScenario,
   onOpenWorkflows,
@@ -168,6 +174,14 @@ export function ScenariosView({
   const scenarioPrompts = useMemo(
     () => PROMPTS.filter((prompt) => prompt.scenarioId === focusedScenario.id),
     [focusedScenario.id]
+  )
+  const scenarioExternalSystems = useMemo(
+    () => externalSystems.filter((system) => system.scenarioId === focusedScenario.id),
+    [externalSystems, focusedScenario.id]
+  )
+  const scenarioAiThreads = useMemo(
+    () => aiThreads.filter((thread) => thread.scenarioId === focusedScenario.id),
+    [aiThreads, focusedScenario.id]
   )
 
   const blockedSessions = scenarioSessions.filter((session) => session.status === "blocked")
@@ -354,6 +368,8 @@ export function ScenariosView({
                         <StatChip label="Outputs" value={scenarioOutputs.length} />
                         <StatChip label="Open loops" value={openLoopCount} tone={openLoopCount > 0 ? "warning" : "neutral"} />
                         <StatChip label="Goals" value={scenarioGoals.length} />
+                        <StatChip label="Systems" value={scenarioExternalSystems.length} />
+                        <StatChip label="AI threads" value={scenarioAiThreads.length} />
                       </div>
                     </div>
 
@@ -517,6 +533,19 @@ export function ScenariosView({
                               }
                             />
                           </div>
+                        </CompactPanel>
+
+                        <CompactPanel
+                          icon={Compass}
+                          title="External registry"
+                          description="Outside systems and AI execution threads linked to this scenario."
+                        >
+                          <MetaRow label="External systems" value={String(scenarioExternalSystems.length)} />
+                          <MetaRow label="AI threads" value={String(scenarioAiThreads.length)} />
+                          <MetaRow
+                            label="Latest thread"
+                            value={scenarioAiThreads[0]?.title ?? "No AI threads recorded yet"}
+                          />
                         </CompactPanel>
                       </div>
                     </div>

@@ -4,12 +4,14 @@ import { useEffect, useMemo, useState } from "react"
 import {
   AlertTriangle,
   ArrowRight,
+  Bot,
   CheckCircle2,
   Copy,
   Database,
   ExternalLink,
   Flag,
   GitBranch,
+  Link2,
   ListChecks,
   MessageSquare,
   PauseCircle,
@@ -30,7 +32,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { getLatestSessionForWorkflow } from "@/lib/control-tower"
 import { cn } from "@/lib/utils"
 import { getContextIcon, getStatusMeta } from "@/lib/ui-meta"
-import type { ContextRecord, Project, Prompt, Scenario, Tool, Workflow, WorkflowSession } from "@/types"
+import type { AiThreadRecord, ContextRecord, ExternalSystemRecord, Project, Prompt, Scenario, Tool, Workflow, WorkflowSession } from "@/types"
 import type { GoalRecord, WorkflowHealth } from "@/types"
 
 interface WorkflowLibraryProps {
@@ -47,6 +49,8 @@ interface WorkflowLibraryProps {
   stepTools: Tool[]
   stepContexts: ContextRecord[]
   goals: GoalRecord[]
+  externalSystems: ExternalSystemRecord[]
+  aiThreads: AiThreadRecord[]
   getWorkflowHealth: (workflowId: string) => WorkflowHealth | undefined
   executionPack: string
   onSelectWorkflow: (workflowId: string) => void
@@ -132,6 +136,8 @@ export function WorkflowLibrary({
   stepTools,
   stepContexts,
   goals,
+  externalSystems,
+  aiThreads,
   getWorkflowHealth,
   executionPack,
   onSelectWorkflow,
@@ -229,6 +235,20 @@ export function WorkflowLibrary({
   const expectedOutput = selectedStep?.expectedOutput ?? selectedWorkflow.output
   const currentProjectForWorkflow =
     scenarioProjects.find((project) => project.workflowIds.includes(selectedWorkflow.id)) ?? selectedProject
+  const linkedExternalSystems = externalSystems
+    .filter(
+      (system) =>
+        system.workflowId === selectedWorkflow.id ||
+        (currentProjectForWorkflow?.id && system.projectId === currentProjectForWorkflow.id)
+    )
+    .slice(0, 3)
+  const linkedAiThreads = aiThreads
+    .filter(
+      (thread) =>
+        thread.workflowId === selectedWorkflow.id ||
+        (currentProjectForWorkflow?.id && thread.projectId === currentProjectForWorkflow.id)
+    )
+    .slice(0, 3)
   const workflowOutputs = workflowSessions
     .flatMap((session) => session.outputs)
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
@@ -649,6 +669,54 @@ export function WorkflowLibrary({
                                         description="Start a session to create execution history."
                                       />
                                     )}
+                                  </div>
+
+                                  <div className="rounded-2xl border border-border/60 bg-card/55 p-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="text-sm font-semibold text-foreground">External systems</p>
+                                      <span className="text-[11px] text-muted-foreground">{linkedExternalSystems.length}</span>
+                                    </div>
+                                    <div className="mt-3 space-y-2">
+                                      {linkedExternalSystems.length > 0 ? (
+                                        linkedExternalSystems.map((system) => (
+                                          <div key={system.id} className="rounded-xl border border-border/60 bg-secondary/10 p-3">
+                                            <div className="flex items-center gap-2">
+                                              <Link2 className="h-4 w-4 text-primary" />
+                                              <p className="text-sm font-semibold text-foreground">{system.name}</p>
+                                            </div>
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                              {system.category} · {system.status}
+                                            </p>
+                                          </div>
+                                        ))
+                                      ) : (
+                                        <CompactEmpty title="No systems linked" description="Log the external system carrying this workflow when work leaves the app." />
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="rounded-2xl border border-border/60 bg-card/55 p-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="text-sm font-semibold text-foreground">AI threads</p>
+                                      <span className="text-[11px] text-muted-foreground">{linkedAiThreads.length}</span>
+                                    </div>
+                                    <div className="mt-3 space-y-2">
+                                      {linkedAiThreads.length > 0 ? (
+                                        linkedAiThreads.map((thread) => (
+                                          <div key={thread.id} className="rounded-xl border border-border/60 bg-secondary/10 p-3">
+                                            <div className="flex items-center gap-2">
+                                              <Bot className="h-4 w-4 text-primary" />
+                                              <p className="text-sm font-semibold text-foreground">{thread.title}</p>
+                                            </div>
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                              {thread.provider} · {thread.status}
+                                            </p>
+                                          </div>
+                                        ))
+                                      ) : (
+                                        <CompactEmpty title="No AI threads linked" description="Register AI conversations so workflow context stays traceable." />
+                                      )}
+                                    </div>
                                   </div>
 
                                   <div className="rounded-2xl border border-border/60 bg-card/55 p-3">

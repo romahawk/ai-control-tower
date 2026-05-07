@@ -191,11 +191,24 @@ export function Settings({ onExport, onImport, onReset, onLoadDemo }: SettingsPr
               ) : null}
 
               {activeTab === "integrations" ? (
-                <EmptyState
-                  icon={Settings2}
-                  title="Integrations are intentionally lightweight"
-                  description="Tool links live in workflows and prompts. Deeper integration can arrive once the execution loop is stable."
-                />
+                <>
+                  <div className="rounded-3xl border border-border/60 bg-card/70 p-5">
+                    <p className="text-sm font-semibold text-foreground">Registry model</p>
+                    <div className="mt-4 space-y-3 text-sm text-muted-foreground">
+                      <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                        External systems can now be logged as structured references tied to scenarios, projects, or workflows.
+                      </div>
+                      <div className="rounded-2xl border border-border/60 bg-secondary/15 p-4">
+                        AI conversation threads can now be registered so off-platform execution context stays traceable.
+                      </div>
+                    </div>
+                  </div>
+                  <EmptyState
+                    icon={Settings2}
+                    title="Deep integrations are still intentionally light"
+                    description="The registry now captures systems and AI threads first. Full API integrations can come later without losing traceability."
+                  />
+                </>
               ) : null}
 
               {activeTab === "shortcuts" ? (
