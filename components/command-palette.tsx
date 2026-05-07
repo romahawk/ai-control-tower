@@ -11,6 +11,7 @@ import {
   Library,
   Search,
   Settings,
+  Wrench,
   Workflow,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -27,6 +28,7 @@ const navCommands = [
   { id: "projects", label: "Go to Projects", icon: FolderKanban, shortcut: "G J" },
   { id: "scenarios", label: "Go to Scenarios", icon: Compass, shortcut: "G S" },
   { id: "workflows", label: "Go to Workflow Library", icon: GitBranch, shortcut: "G W" },
+  { id: "tools", label: "Go to Registry", icon: Wrench, shortcut: "G T" },
   { id: "prompts", label: "Go to Prompt Library", icon: BookOpen, shortcut: "G P" },
   { id: "reviews", label: "Go to Reviews", icon: Workflow, shortcut: "G R" },
   { id: "wiki", label: "Go to Wiki", icon: Library, shortcut: "G I" },

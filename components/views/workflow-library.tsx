@@ -4,12 +4,14 @@ import { useEffect, useMemo, useState } from "react"
 import {
   AlertTriangle,
   ArrowRight,
+  Bot,
   CheckCircle2,
   Copy,
   Database,
   ExternalLink,
   Flag,
   GitBranch,
+  Link2,
   ListChecks,
   MessageSquare,
   PauseCircle,
@@ -30,7 +32,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { getLatestSessionForWorkflow } from "@/lib/control-tower"
 import { cn } from "@/lib/utils"
 import { getContextIcon, getStatusMeta } from "@/lib/ui-meta"
-import type { ContextRecord, Project, Prompt, Scenario, Tool, Workflow, WorkflowSession } from "@/types"
+import type { AiThreadRecord, ContextRecord, ExternalSystemRecord, Project, Prompt, Scenario, Tool, Workflow, WorkflowSession } from "@/types"
 import type { GoalRecord, WorkflowHealth } from "@/types"
 
 interface WorkflowLibraryProps {
@@ -47,6 +49,8 @@ interface WorkflowLibraryProps {
   stepTools: Tool[]
   stepContexts: ContextRecord[]
   goals: GoalRecord[]
+  externalSystems: ExternalSystemRecord[]
+  aiThreads: AiThreadRecord[]
   getWorkflowHealth: (workflowId: string) => WorkflowHealth | undefined
   executionPack: string
   onSelectWorkflow: (workflowId: string) => void
@@ -132,6 +136,8 @@ export function WorkflowLibrary({
   stepTools,
   stepContexts,
   goals,
+  externalSystems,
+  aiThreads,
   getWorkflowHealth,
   executionPack,
   onSelectWorkflow,
@@ -229,6 +235,20 @@ export function WorkflowLibrary({
   const expectedOutput = selectedStep?.expectedOutput ?? selectedWorkflow.output
   const currentProjectForWorkflow =
     scenarioProjects.find((project) => project.workflowIds.includes(selectedWorkflow.id)) ?? selectedProject
+  const linkedExternalSystems = externalSystems
+    .filter(
+      (system) =>
+        system.workflowId === selectedWorkflow.id ||
+        (currentProjectForWorkflow?.id && system.projectId === currentProjectForWorkflow.id)
+    )
+    .slice(0, 3)
+  const linkedAiThreads = aiThreads
+    .filter(
+      (thread) =>
+        thread.workflowId === selectedWorkflow.id ||
+        (currentProjectForWorkflow?.id && thread.projectId === currentProjectForWorkflow.id)
+    )
+    .slice(0, 3)
   const workflowOutputs = workflowSessions
     .flatMap((session) => session.outputs)
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
@@ -245,11 +265,27 @@ export function WorkflowLibrary({
       : "Continue"
     : "Start session"
   const statusLabel = selectedWorkflowSession?.status ?? getBoardStatus(selectedWorkflow, latestWorkflowSession)
+  const promptBody = stepPrompts[0]?.content ?? "No linked prompt yet."
+  const contextOnlyPack = [
+    `Scenario: ${selectedScenario.name}`,
+    `Workflow: ${selectedWorkflow.title}`,
+    `Step: ${selectedStep?.title ?? "No step selected"}`,
+    `Expected output: ${expectedOutput}`,
+    `Relevant context:\n${stepContexts.length > 0 ? stepContexts.map((context) => `- ${context.title}: ${context.content}`).join("\n") : "- None"}`,
+  ].join("\n\n")
 
   const copyExecutionPack = async () => {
     await navigator.clipboard.writeText(executionPack)
     setCopiedPack(true)
     window.setTimeout(() => setCopiedPack(false), 1500)
+  }
+
+  const copyPromptOnly = async () => {
+    await navigator.clipboard.writeText(promptBody)
+  }
+
+  const copyContextOnly = async () => {
+    await navigator.clipboard.writeText(contextOnlyPack)
   }
 
   const saveOutput = () => {
@@ -382,10 +418,10 @@ export function WorkflowLibrary({
                             <p className="line-clamp-1 text-sm font-semibold text-foreground">{workflow.title}</p>
                             <StatusBadge status={getBoardStatus(workflow, workflowSession)} className="shrink-0" />
                           </div>
-                          <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                             <span>{workflowCompletedSteps}/{workflow.steps.length} steps</span>
                             {workflowProject ? <span>{workflowProject.name}</span> : <span>{selectedScenario.name}</span>}
-                            {health ? <StatusBadge status={health.status} /> : null}
+                            {health ? <span className="rounded-full border border-border/60 bg-card/40 px-2 py-0.5">{health.status}</span> : null}
                           </div>
                         </button>
                       )
@@ -488,15 +524,13 @@ export function WorkflowLibrary({
                       </div>
 
                     {workflowHealth ? (
-                      <div className="rounded-2xl border border-border/60 bg-secondary/10 px-3 py-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-semibold text-foreground">Workflow health</p>
-                          <StatusBadge status={workflowHealth.status} />
-                          <span className="rounded-full border border-border/60 bg-card/50 px-2 py-0.5 text-[10px] text-muted-foreground">
-                            {workflowHealth.linkedGoalCount} goals linked
-                          </span>
-                        </div>
-                        <p className="mt-2 text-sm text-muted-foreground">{workflowHealth.reason}</p>
+                      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/60 bg-secondary/10 px-3 py-2.5">
+                        <span className="text-sm font-semibold text-foreground">Workflow health</span>
+                        <StatusBadge status={workflowHealth.status} />
+                        <span className="rounded-full border border-border/60 bg-card/50 px-2 py-0.5 text-[10px] text-muted-foreground">
+                          {workflowHealth.linkedGoalCount} goals linked
+                        </span>
+                        <span className="min-w-0 flex-1 text-sm text-muted-foreground">{workflowHealth.reason}</span>
                       </div>
                     ) : null}
 
@@ -541,9 +575,17 @@ export function WorkflowLibrary({
                               </div>
 
                               <div className="mt-4 flex flex-wrap gap-2">
+                                <Button variant="outline" onClick={copyContextOnly}>
+                                  <Copy className="h-4 w-4" />
+                                  Copy context
+                                </Button>
+                                <Button variant="outline" onClick={copyPromptOnly}>
+                                  <MessageSquare className="h-4 w-4" />
+                                  Copy prompt
+                                </Button>
                                 <Button variant="outline" onClick={copyExecutionPack}>
                                   <Copy className="h-4 w-4" />
-                                  {copiedPack ? "Copied" : "Copy Context + Prompt"}
+                                  {copiedPack ? "Copied" : "Copy package"}
                                 </Button>
                                 {selectedWorkflowSession ? (
                                   <Button onClick={() => onResumeWorkflowSession(selectedWorkflowSession.id, resumeDraft.trim())}>
@@ -651,6 +693,54 @@ export function WorkflowLibrary({
                                         description="Start a session to create execution history."
                                       />
                                     )}
+                                  </div>
+
+                                  <div className="rounded-2xl border border-border/60 bg-card/55 p-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="text-sm font-semibold text-foreground">External systems</p>
+                                      <span className="text-[11px] text-muted-foreground">{linkedExternalSystems.length}</span>
+                                    </div>
+                                    <div className="mt-3 space-y-2">
+                                      {linkedExternalSystems.length > 0 ? (
+                                        linkedExternalSystems.map((system) => (
+                                          <div key={system.id} className="rounded-xl border border-border/60 bg-secondary/10 p-3">
+                                            <div className="flex items-center gap-2">
+                                              <Link2 className="h-4 w-4 text-primary" />
+                                              <p className="text-sm font-semibold text-foreground">{system.name}</p>
+                                            </div>
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                              {system.category} · {system.status}
+                                            </p>
+                                          </div>
+                                        ))
+                                      ) : (
+                                        <CompactEmpty title="No systems linked" description="Log the external system carrying this workflow when work leaves the app." />
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="rounded-2xl border border-border/60 bg-card/55 p-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="text-sm font-semibold text-foreground">AI threads</p>
+                                      <span className="text-[11px] text-muted-foreground">{linkedAiThreads.length}</span>
+                                    </div>
+                                    <div className="mt-3 space-y-2">
+                                      {linkedAiThreads.length > 0 ? (
+                                        linkedAiThreads.map((thread) => (
+                                          <div key={thread.id} className="rounded-xl border border-border/60 bg-secondary/10 p-3">
+                                            <div className="flex items-center gap-2">
+                                              <Bot className="h-4 w-4 text-primary" />
+                                              <p className="text-sm font-semibold text-foreground">{thread.title}</p>
+                                            </div>
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                              {thread.provider} · {thread.status}
+                                            </p>
+                                          </div>
+                                        ))
+                                      ) : (
+                                        <CompactEmpty title="No AI threads linked" description="Register AI conversations so workflow context stays traceable." />
+                                      )}
+                                    </div>
                                   </div>
 
                                   <div className="rounded-2xl border border-border/60 bg-card/55 p-3">

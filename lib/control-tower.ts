@@ -1,4 +1,6 @@
+import { AI_THREADS } from "@/data/ai-threads"
 import { CONTEXT_RECORDS } from "@/data/contexts"
+import { EXTERNAL_SYSTEMS } from "@/data/external-systems"
 import { GOALS } from "@/data/goals"
 import { PROJECTS } from "@/data/projects"
 import { PROMPTS } from "@/data/prompts"
@@ -7,11 +9,14 @@ import { TOOLS } from "@/data/tools"
 import { WORKFLOWS } from "@/data/workflows"
 import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "@/lib/storage"
 import type {
+  AiThreadRecord,
   ContextRecord,
   ControlTowerState,
+  ExternalSystemRecord,
   GoalRecord,
   GoalStatus,
   OutputRecord,
+  Prompt,
   Project,
   ProjectStatus,
   QuickCaptureRecord,
@@ -47,6 +52,8 @@ export function createInitialControlTowerState(): ControlTowerState {
     contexts: CONTEXT_RECORDS,
     reviews: [],
     quickCaptures: [],
+    externalSystems: EXTERNAL_SYSTEMS,
+    aiThreads: AI_THREADS,
   }
 }
 
@@ -75,6 +82,8 @@ export function sanitizeState(input: ControlTowerState): ControlTowerState {
     contexts: input.contexts?.length ? input.contexts : fallback.contexts,
     reviews: input.reviews ?? [],
     quickCaptures: input.quickCaptures ?? [],
+    externalSystems: input.externalSystems ?? fallback.externalSystems,
+    aiThreads: input.aiThreads ?? fallback.aiThreads,
   }
 }
 
@@ -157,6 +166,42 @@ export function getGoalsForProject(state: ControlTowerState, projectId?: string)
 export function getGoalsForWorkflow(state: ControlTowerState, workflowId: string) {
   return state.goals
     .filter((goal) => goal.workflowIds.includes(workflowId))
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+export function getExternalSystemsForScenario(state: ControlTowerState, scenarioId?: string) {
+  return state.externalSystems
+    .filter((system) => !scenarioId || system.scenarioId === scenarioId)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+export function getExternalSystemsForProject(state: ControlTowerState, projectId?: string) {
+  return state.externalSystems
+    .filter((system) => !projectId || system.projectId === projectId)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+export function getExternalSystemsForWorkflow(state: ControlTowerState, workflowId?: string) {
+  return state.externalSystems
+    .filter((system) => !workflowId || system.workflowId === workflowId)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+export function getAiThreadsForScenario(state: ControlTowerState, scenarioId?: string) {
+  return state.aiThreads
+    .filter((thread) => !scenarioId || thread.scenarioId === scenarioId)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+export function getAiThreadsForProject(state: ControlTowerState, projectId?: string) {
+  return state.aiThreads
+    .filter((thread) => !projectId || thread.projectId === projectId)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+export function getAiThreadsForWorkflow(state: ControlTowerState, workflowId?: string) {
+  return state.aiThreads
+    .filter((thread) => !workflowId || thread.workflowId === workflowId)
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
 }
 
@@ -263,6 +308,13 @@ export function getToolsForStep(step?: WorkflowStep): Tool[] {
 
   return TOOLS.filter((tool) => step.toolIds.includes(tool.id))
 }
+
+export const PROMPT_OS_RULES = [
+  "Prefer the smallest prompt that can move the current step forward.",
+  "Package context separately from the prompt so context can be refreshed without rewriting instructions.",
+  "Tie every prompt to an expected output before sending it to an AI tool.",
+  "Use workflow-linked prompts before creating new custom prompts.",
+]
 
 function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -597,6 +649,72 @@ export function deleteContext(contexts: ContextRecord[], contextId: string) {
   return contexts.filter((context) => context.id !== contextId)
 }
 
+export function upsertExternalSystem(
+  systems: ExternalSystemRecord[],
+  system: Omit<ExternalSystemRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }
+) {
+  const timestamp = new Date().toISOString()
+
+  if (system.id) {
+    return systems.map((existingSystem) =>
+      existingSystem.id === system.id
+        ? {
+            ...existingSystem,
+            ...system,
+            updatedAt: timestamp,
+          }
+        : existingSystem
+    )
+  }
+
+  return [
+    {
+      ...system,
+      id: makeId("external-system"),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+    ...systems,
+  ]
+}
+
+export function deleteExternalSystem(systems: ExternalSystemRecord[], systemId: string) {
+  return systems.filter((system) => system.id !== systemId)
+}
+
+export function upsertAiThread(
+  threads: AiThreadRecord[],
+  thread: Omit<AiThreadRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }
+) {
+  const timestamp = new Date().toISOString()
+
+  if (thread.id) {
+    return threads.map((existingThread) =>
+      existingThread.id === thread.id
+        ? {
+            ...existingThread,
+            ...thread,
+            updatedAt: timestamp,
+          }
+        : existingThread
+    )
+  }
+
+  return [
+    {
+      ...thread,
+      id: makeId("ai-thread"),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+    ...threads,
+  ]
+}
+
+export function deleteAiThread(threads: AiThreadRecord[], threadId: string) {
+  return threads.filter((thread) => thread.id !== threadId)
+}
+
 export function buildExecutionPack(
   workflow: Workflow,
   step: WorkflowStep,
@@ -635,6 +753,49 @@ export function buildExecutionPack(
         : "- None"
     }`,
   ].join("\n\n")
+}
+
+export function buildContextPackForPrompt(prompt: Prompt, state: ControlTowerState) {
+  const workflow = prompt.workflowId ? getWorkflowById(prompt.workflowId) : undefined
+  const step = workflow?.steps.find((workflowStep) => workflowStep.id === prompt.stepId) ?? workflow?.steps[0]
+  const contexts = workflow
+    ? getContextsForStep(state, workflow, step)
+    : state.contexts.filter((context) => context.scenarioId === prompt.scenarioId)
+  const tool = prompt.toolId ? getToolById(prompt.toolId) : undefined
+
+  return [
+    `Scenario: ${getScenarioById(prompt.scenarioId)?.name ?? prompt.scenarioId ?? "Unscoped"}`,
+    `Workflow: ${workflow?.title ?? "No workflow linked"}`,
+    `Step: ${step?.title ?? "No step linked"}`,
+    `Expected output: ${prompt.expectedOutput}`,
+    `Recommended tool: ${tool?.name ?? "No tool linked"}`,
+    `Relevant context:\n${contexts.length > 0 ? contexts.map((context) => `- ${context.title}: ${context.content}`).join("\n") : "- None"}`,
+  ].join("\n\n")
+}
+
+export function buildPromptOnly(prompt: Prompt) {
+  return prompt.content
+}
+
+export function buildPromptPackage(prompt: Prompt, state: ControlTowerState) {
+  const workflow = prompt.workflowId ? getWorkflowById(prompt.workflowId) : undefined
+  const tool = prompt.toolId ? getToolById(prompt.toolId) : undefined
+
+  return [
+    "PROMPT OS PACKAGE",
+    `Prompt: ${prompt.title}`,
+    `Purpose: ${prompt.purpose}`,
+    `Expected output: ${prompt.expectedOutput}`,
+    `Input required: ${prompt.inputRequired}`,
+    `Workflow: ${workflow?.title ?? "No workflow linked"}`,
+    `Tool: ${tool?.name ?? "No tool linked"}`,
+    "",
+    `OPERATING RULES:\n${PROMPT_OS_RULES.map((rule) => `- ${rule}`).join("\n")}`,
+    "",
+    `CONTEXT PACK:\n${buildContextPackForPrompt(prompt, state)}`,
+    "",
+    `PROMPT BODY:\n${buildPromptOnly(prompt)}`,
+  ].join("\n")
 }
 
 export function buildReviewRecord(

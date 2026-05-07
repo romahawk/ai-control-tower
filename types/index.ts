@@ -33,6 +33,8 @@ export type ReviewType = "daily" | "weekly" | "scenario" | "workflow"
 export type QuickCaptureType = "task" | "prompt" | "idea" | "decision"
 export type WorkspaceBoardStatus = "inbox" | "clarify" | "active" | "waiting" | "done" | "blocked"
 export type WorkflowHealthStatus = "healthy" | "at-risk" | "blocked" | "stale" | "misaligned"
+export type ExternalSystemStatus = "reference" | "active" | "connected" | "archived"
+export type AiThreadStatus = "active" | "paused" | "completed" | "archived"
 export type PromptPurpose =
   | "research"
   | "planning"
@@ -236,6 +238,42 @@ export interface QuickCaptureRecord {
   updatedAt: string
 }
 
+export interface ExternalSystemRecord {
+  id: string
+  name: string
+  category: string
+  status: ExternalSystemStatus
+  scenarioId?: string
+  projectId?: string
+  workflowId?: string
+  toolId?: string
+  url?: string
+  purpose: string
+  notes?: string
+  lastUsedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AiThreadRecord {
+  id: string
+  title: string
+  provider: string
+  status: AiThreadStatus
+  scenarioId?: string
+  projectId?: string
+  workflowId?: string
+  stepId?: string
+  toolId?: string
+  externalSystemId?: string
+  url?: string
+  summary: string
+  nextAction?: string
+  lastMessageAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface ControlTowerState {
   version: number
   selectedScenarioId: string
@@ -248,6 +286,8 @@ export interface ControlTowerState {
   contexts: ContextRecord[]
   reviews: ReviewRecord[]
   quickCaptures: QuickCaptureRecord[]
+  externalSystems: ExternalSystemRecord[]
+  aiThreads: AiThreadRecord[]
 }
 
 export interface WorkflowHealth {

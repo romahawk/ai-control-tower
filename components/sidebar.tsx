@@ -13,6 +13,7 @@ import {
   Library,
   Settings,
   Sparkles,
+  Wrench,
   Workflow,
 } from "lucide-react"
 
@@ -27,6 +28,7 @@ const navItems: { id: ViewType; label: string; icon: React.ElementType; badge?: 
   { id: "projects", label: "Projects", icon: FolderKanban, badge: "Phase 2" },
   { id: "scenarios", label: "Scenarios", icon: Compass },
   { id: "workflows", label: "Workflows", icon: GitBranch, badge: "Core" },
+  { id: "tools", label: "Registry", icon: Wrench, badge: "Phase 6" },
   { id: "prompts", label: "Prompts", icon: BookOpen },
   { id: "reviews", label: "Reviews", icon: Workflow },
   { id: "wiki", label: "Wiki", icon: Library, badge: "Guide" },

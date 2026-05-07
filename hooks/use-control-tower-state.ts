@@ -13,14 +13,22 @@ import {
   completeSessionStep,
   createInitialControlTowerState,
   createWorkflowSession,
+  deleteAiThread,
   deleteContext,
+  deleteExternalSystem,
   exportControlTowerData,
   finishSession,
   getActiveSessions,
+  getAiThreadsForProject,
+  getAiThreadsForScenario,
+  getAiThreadsForWorkflow,
   getCompletedStepsCount,
   getContextsForStep,
   getCurrentStepIndex,
   getDeterministicNextActions,
+  getExternalSystemsForProject,
+  getExternalSystemsForScenario,
+  getExternalSystemsForWorkflow,
   getGoalsForProject,
   getProjectById,
   getProjectsForScenario,
@@ -48,8 +56,19 @@ import {
   setProjectStatus,
   setGoalStatus,
   upsertGoal,
+  upsertAiThread,
+  upsertExternalSystem,
 } from "@/lib/control-tower"
-import type { ContextRecord, ControlTowerState, GoalStatus, OutputType, ProjectStatus, ReviewType } from "@/types"
+import type {
+  AiThreadRecord,
+  ContextRecord,
+  ControlTowerState,
+  ExternalSystemRecord,
+  GoalStatus,
+  OutputType,
+  ProjectStatus,
+  ReviewType,
+} from "@/types"
 
 export function useControlTowerState() {
   const [state, setState] = useState<ControlTowerState>(createInitialControlTowerState)
@@ -126,6 +145,16 @@ export function useControlTowerState() {
 
   const selectedProjectGoals = useMemo(
     () => (selectedProject ? getGoalsForProject(state, selectedProject.id) : []),
+    [selectedProject, state]
+  )
+
+  const selectedProjectExternalSystems = useMemo(
+    () => (selectedProject ? getExternalSystemsForProject(state, selectedProject.id) : []),
+    [selectedProject, state]
+  )
+
+  const selectedProjectAiThreads = useMemo(
+    () => (selectedProject ? getAiThreadsForProject(state, selectedProject.id) : []),
     [selectedProject, state]
   )
 
@@ -441,6 +470,38 @@ export function useControlTowerState() {
     }))
   }
 
+  const saveExternalSystem = (
+    params: Omit<ExternalSystemRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }
+  ) => {
+    updateState((currentState) => ({
+      ...currentState,
+      externalSystems: upsertExternalSystem(currentState.externalSystems, params),
+    }))
+  }
+
+  const removeExternalSystemRecord = (systemId: string) => {
+    updateState((currentState) => ({
+      ...currentState,
+      externalSystems: deleteExternalSystem(currentState.externalSystems, systemId),
+    }))
+  }
+
+  const saveAiThread = (
+    params: Omit<AiThreadRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }
+  ) => {
+    updateState((currentState) => ({
+      ...currentState,
+      aiThreads: upsertAiThread(currentState.aiThreads, params),
+    }))
+  }
+
+  const removeAiThreadRecord = (threadId: string) => {
+    updateState((currentState) => ({
+      ...currentState,
+      aiThreads: deleteAiThread(currentState.aiThreads, threadId),
+    }))
+  }
+
   const createReview = (type: ReviewType, options?: { scenarioId?: string; workflowId?: string }) => {
     const review = buildReviewRecord(type, state, options)
     updateState((currentState) => ({
@@ -533,14 +594,22 @@ export function useControlTowerState() {
     reviewSummary,
     selectedProjectSummary,
     selectedProjectGoals,
+    selectedProjectExternalSystems,
+    selectedProjectAiThreads,
     reviews: state.reviews,
     quickCaptures: state.quickCaptures,
     projects: state.projects,
     goals: state.goals,
+    externalSystems: state.externalSystems,
+    aiThreads: state.aiThreads,
     getWorkflowHealth: (workflowId: string) => {
       const workflow = getWorkflowById(workflowId)
       return workflow ? getWorkflowHealth(state, workflow) : undefined
     },
+    getScenarioExternalSystems: (scenarioId?: string) => getExternalSystemsForScenario(state, scenarioId),
+    getWorkflowExternalSystems: (workflowId?: string) => getExternalSystemsForWorkflow(state, workflowId),
+    getScenarioAiThreads: (scenarioId?: string) => getAiThreadsForScenario(state, scenarioId),
+    getWorkflowAiThreads: (workflowId?: string) => getAiThreadsForWorkflow(state, workflowId),
     selectProject,
     selectScenario,
     selectWorkflow,
@@ -563,6 +632,10 @@ export function useControlTowerState() {
     updateProjectStatus,
     saveGoal,
     updateGoalStatus,
+    saveExternalSystem,
+    removeExternalSystemRecord,
+    saveAiThread,
+    removeAiThreadRecord,
     createReview,
     saveQuickCapture,
     downloadExport,
